@@ -1,0 +1,130 @@
+<div class="json-editor-wrapper">
+  <!-- Editor Top Bar -->
+  <div class="editor-topbar">
+    <div class="editor-topbar__left">
+      <div class="type-tag">
+        <i [class]="tab().objectType.icon"></i>
+        <span class="type-name">{{ tab().objectType.label }}</span>
+      </div>
+
+      @if (tab().objectType.supportsUpdate) {
+        <span class="mode-tag mode-tag--rw">
+          <i class="pi pi-pencil"></i> {{ tab().objectType.updateMethod }}
+        </span>
+      } @else {
+        <span class="mode-tag mode-tag--ro">
+          <i class="pi pi-lock"></i> Read-Only
+        </span>
+      }
+
+      <span class="meta-sep">&bull;</span>
+      <span class="obj-id font-mono">{{ tab().objectId }}</span>
+    </div>
+
+    <div class="editor-topbar__right">
+      <!-- Validation Status Indicator -->
+      @if (tab().jsonError) {
+        <span class="error-badge" [title]="tab().jsonError">
+          <i class="pi pi-times-circle"></i> Invalid JSON
+        </span>
+      } @else {
+        <span class="valid-badge">
+          <i class="pi pi-check-circle"></i> Valid JSON
+        </span>
+      }
+
+      <!-- Reload Object Button -->
+      <button
+        type="button"
+        class="tool-btn"
+        (click)="reloadObject.emit()"
+        [disabled]="reloading()"
+        pTooltip="Reload latest definition from tenant"
+      >
+        <i class="pi pi-refresh" [class.pi-spin]="reloading()"></i>
+        <span>Reload</span>
+      </button>
+
+      <!-- JSON Formatting Tools -->
+      @if (tab().objectType.supportsUpdate && isEditMode()) {
+        <button type="button" class="tool-btn" (click)="formatJson()" pTooltip="Format JSON with 2 spaces">
+          <i class="pi pi-align-left"></i> Format
+        </button>
+
+        <button type="button" class="tool-btn" (click)="minifyJson()" pTooltip="Minify JSON">
+          <i class="pi pi-compress"></i> Minify
+        </button>
+      }
+
+      <button
+        type="button"
+        class="tool-btn"
+        (click)="copyJson()"
+        pTooltip="Copy JSON to clipboard"
+      >
+        <i class="pi" [class.pi-copy]="!copied()" [class.pi-check]="copied()"></i>
+        {{ copied() ? 'Copied' : 'Copy' }}
+      </button>
+
+      @if (tab().objectType.supportsUpdate) {
+        <button
+          type="button"
+          class="save-btn"
+          (click)="reviewDiff.emit()"
+          [disabled]="!tab().isDirty || !!tab().jsonError"
+          pTooltip="Review changes in differential modal"
+        >
+          <i class="pi pi-check"></i> Review Diff &amp; Save
+        </button>
+      }
+    </div>
+  </div>
+
+  <!-- Editor Body / Workspace -->
+  <div class="editor-body">
+    <!-- 1. Interactive Edit Mode (when global edit mode is on and object supports update) -->
+    @if (isEditMode() && tab().objectType.supportsUpdate) {
+      <div class="code-container edit-view">
+        <div class="line-gutter font-mono" #editGutter>
+          @for (num of getLineNumbers(tab().editedCode); track num) {
+            <div class="line-num">{{ num }}</div>
+          }
+        </div>
+        <div class="code-editor-surface font-mono">
+          <pre class="code-backdrop" #editBackdrop aria-hidden="true"><code [innerHTML]="highlightedCodeHtml()"></code></pre>
+          <textarea
+            #codeArea
+            class="code-textarea font-mono"
+            [ngModel]="tab().editedCode"
+            (ngModelChange)="onJsonInput($event)"
+            (keydown)="handleKeyDown($event, codeArea)"
+            (scroll)="syncEditScroll(codeArea, editBackdrop, editGutter)"
+            spellcheck="false"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="off"
+            placeholder="Loading JSON definition..."
+          ></textarea>
+        </div>
+      </div>
+    }
+
+    <!-- 2. Syntax Highlighted Read-Only View (Default view mode or read-only object) -->
+    @else {
+      <div class="code-container syntax-view">
+        <div class="syntax-scroll-pane font-mono">
+          <div class="line-gutter">
+            @for (line of highlightedLines(); track line.lineNum) {
+              <div class="line-num">{{ line.lineNum }}</div>
+            }
+          </div>
+          <div class="syntax-content">
+            @for (line of highlightedLines(); track line.lineNum) {
+              <div class="syntax-line" [innerHTML]="line.html"></div>
+            }
+          </div>
+        </div>
+      </div>
+    }
+  </div>
+</div>

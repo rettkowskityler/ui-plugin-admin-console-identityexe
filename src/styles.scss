@@ -1,0 +1,352 @@
+@import 'primeicons/primeicons.css';
+
+/* IdentityEXE Enterprise Brand System */
+:root {
+  --color-brand-blue: #5184c4;
+  --color-brand-accent: #54c7e7;
+  --color-brand-light: #ceeef5;
+  --font-family-display: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-family-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-family-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', Menlo, Consolas, monospace;
+}
+
+/* ==========================================================================
+   Dark Theme (Default)
+   ========================================================================== */
+:root,
+body.theme-dark,
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg-primary: #02081b;
+  --bg-secondary: #061124;
+  --bg-tertiary: #09152b;
+  --bg-card: #08152c;
+  --bg-hover: #0f2240;
+  --bg-active: #142b4d;
+  --border-color: #162744;
+  --border-subtle: #122038;
+  --border-focus: #54c7e7;
+  --text-primary: #ffffff;
+  --text-secondary: #cad8ee;
+  --text-muted: #748aa6;
+  --text-dim: #567299;
+  --editor-bg: #02081b;
+  --gutter-bg: #061124;
+  --gutter-text: #3f587d;
+  --tab-inactive-bg: #09152b;
+  --tab-active-bg: #02081b;
+  --status-bar-bg: #030a18;
+  --activity-bar-bg: #030a18;
+  --scrollbar-track: #061124;
+  --scrollbar-thumb: #1c3559;
+  --scrollbar-hover: #54c7e7;
+
+  /* Syntax Highlighting */
+  --tok-key: #54c7e7;
+  --tok-string: #a8d59d;
+  --tok-number: #f7b731;
+  --tok-boolean: #ff7675;
+  --tok-null: #a29bfe;
+  --tok-punctuation: #748aa6;
+  --tok-keyword: #e06c75;
+  --tok-type: #54c7e7;
+  --tok-comment: #7f8c8d;
+  --tok-variable: #f59e0b;
+  --tok-method: #60a5fa;
+  --tok-annotation: #e5c07b;
+}
+
+/* ==========================================================================
+   Light Theme
+   ========================================================================== */
+body.theme-light,
+[data-theme='light'] {
+  color-scheme: light;
+  --bg-primary: #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f1f5f9;
+  --bg-card: #ffffff;
+  --bg-hover: #e2e8f0;
+  --bg-active: #cbd5e1;
+  --border-color: #e2e8f0;
+  --border-subtle: #cbd5e1;
+  --border-focus: #5184c4;
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --text-dim: #94a3b8;
+  --editor-bg: #ffffff;
+  --gutter-bg: #f8fafc;
+  --gutter-text: #94a3b8;
+  --tab-inactive-bg: #f1f5f9;
+  --tab-active-bg: #ffffff;
+  --status-bar-bg: #f1f5f9;
+  --activity-bar-bg: #f8fafc;
+  --scrollbar-track: #f1f5f9;
+  --scrollbar-thumb: #cbd5e1;
+  --scrollbar-hover: #94a3b8;
+
+  /* Syntax Highlighting */
+  --tok-key: #0969da;
+  --tok-string: #059669;
+  --tok-number: #d97706;
+  --tok-boolean: #7c3aed;
+  --tok-null: #64748b;
+  --tok-punctuation: #64748b;
+  --tok-keyword: #cf222e;
+  --tok-type: #0969da;
+  --tok-comment: #6e7781;
+  --tok-variable: #b45309;
+  --tok-method: #0284c7;
+  --tok-annotation: #92400e;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font-family-sans);
+  background-color: var(--bg-primary);
+  color: var(--text-secondary);
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-family-display);
+}
+
+p,
+li {
+  line-height: 1.5rem;
+}
+
+/* Scrollbar aesthetic */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-hover);
+}
+
+/* Monospace font utility */
+.font-mono {
+  font-family: var(--font-family-mono) !important;
+}
+
+/* ==========================================================================
+   Syntax Token Colors (Global - Applies to [innerHTML] and Editors)
+   ========================================================================== */
+.json-key,
+.tok-key {
+  color: var(--tok-key) !important;
+  font-weight: 600;
+}
+
+.json-string,
+.tok-string {
+  color: var(--tok-string) !important;
+}
+
+.json-number,
+.tok-number {
+  color: var(--tok-number) !important;
+  font-weight: 500;
+}
+
+.json-boolean,
+.tok-boolean {
+  color: var(--tok-boolean) !important;
+  font-weight: 600;
+}
+
+.json-null,
+.tok-null {
+  color: var(--tok-null) !important;
+  font-style: italic;
+  opacity: 0.85;
+}
+
+.json-punct,
+.tok-punctuation {
+  color: var(--tok-punctuation) !important;
+}
+
+.code-keyword,
+.tok-keyword {
+  color: var(--tok-keyword) !important;
+  font-weight: 600;
+}
+
+.code-type,
+.tok-type {
+  color: var(--tok-type) !important;
+  font-weight: 600;
+}
+
+.code-comment,
+.tok-comment {
+  color: var(--tok-comment) !important;
+  font-style: italic;
+  opacity: 0.8;
+}
+
+.code-string {
+  color: var(--tok-string) !important;
+}
+
+.code-number {
+  color: var(--tok-number) !important;
+}
+
+.code-boolean {
+  color: var(--tok-boolean) !important;
+  font-weight: 600;
+}
+
+.code-variable,
+.tok-variable {
+  color: var(--tok-variable) !important;
+  font-weight: 600;
+}
+
+.code-method,
+.tok-method {
+  color: var(--tok-method) !important;
+}
+
+.code-annotation,
+.tok-annotation {
+  color: var(--tok-annotation) !important;
+  font-style: italic;
+}
+
+/* ==========================================================================
+   Real-Time Syntax Highlighting Code Editor Surface (Edit & Split Modes)
+   ========================================================================== */
+.code-editor-surface {
+  position: relative !important;
+  flex: 1 !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  background: var(--editor-bg) !important;
+}
+
+.code-backdrop {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  padding: 0.5rem 0.75rem !important;
+  border: none !important;
+  box-sizing: border-box !important;
+  overflow: hidden !important;
+  pointer-events: none !important;
+  user-select: none !important;
+  background: transparent !important;
+  color: var(--text-primary) !important;
+  font-family: var(--font-family-mono) !important;
+  font-size: 0.82rem !important;
+  line-height: 1.45rem !important;
+  letter-spacing: 0 !important;
+  white-space: pre !important;
+  word-wrap: normal !important;
+  overflow-wrap: normal !important;
+  tab-size: 2 !important;
+  -moz-tab-size: 2 !important;
+  z-index: 1 !important;
+
+  code {
+    display: inline-block !important;
+    min-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    color: inherit !important;
+    font-family: inherit !important;
+    font-size: inherit !important;
+    line-height: inherit !important;
+    letter-spacing: inherit !important;
+    white-space: inherit !important;
+    tab-size: inherit !important;
+    -moz-tab-size: inherit !important;
+  }
+
+  &--java {
+    tab-size: 4 !important;
+    -moz-tab-size: 4 !important;
+
+    code {
+      tab-size: 4 !important;
+      -moz-tab-size: 4 !important;
+    }
+  }
+}
+
+.code-textarea {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+  padding: 0.5rem 0.75rem !important;
+  border: none !important;
+  box-sizing: border-box !important;
+  background: transparent !important;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  caret-color: var(--text-primary, #ffffff) !important;
+  outline: none !important;
+  resize: none !important;
+  overflow: auto !important;
+  font-family: var(--font-family-mono) !important;
+  font-size: 0.82rem !important;
+  line-height: 1.45rem !important;
+  letter-spacing: 0 !important;
+  white-space: pre !important;
+  word-wrap: normal !important;
+  overflow-wrap: normal !important;
+  tab-size: 2 !important;
+  -moz-tab-size: 2 !important;
+  z-index: 2 !important;
+
+  &--java {
+    tab-size: 4 !important;
+    -moz-tab-size: 4 !important;
+  }
+
+  &::placeholder {
+    color: var(--text-dim) !important;
+    -webkit-text-fill-color: var(--text-dim) !important;
+  }
+
+  &::selection {
+    background: rgba(84, 199, 231, 0.32) !important;
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
+  }
+}
+

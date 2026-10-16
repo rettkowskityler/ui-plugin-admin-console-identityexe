@@ -1,0 +1,583 @@
+<div class="log-viewer-container">
+  <!-- Top Navigation & Metrics Header -->
+  <header class="log-header">
+    <div class="log-header__left">
+      <button
+        type="button"
+        class="header-action-btn header-action-btn--back"
+        (click)="backToExplorer.emit()"
+        pTooltip="Return to Object Explorer Workspace"
+        tooltipPosition="bottom"
+      >
+        <i class="pi pi-arrow-left"></i>
+        <span>Object Browser</span>
+      </button>
+
+      <div class="log-header__title-block">
+        <h1 class="log-header__title">
+          <i class="pi pi-arrow-right-arrow-left header-title-icon"></i>
+          API & Network Activity
+        </h1>
+        <div class="log-header__status">
+          @if (apiLog.recording()) {
+            <span class="live-dot live-dot--active" pTooltip="Live Recording Active" tooltipPosition="bottom"></span>
+            <span class="live-label">Capturing Traffic</span>
+          } @else {
+            <span class="live-dot live-dot--paused" pTooltip="Recording Paused" tooltipPosition="bottom"></span>
+            <span class="live-label live-label--paused">Paused</span>
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Performance & Traffic Metrics -->
+    <div class="log-header__metrics">
+      <div class="metric-pill" title="Total Captured Calls">
+        <span class="metric-label">Calls</span>
+        <span class="metric-value font-mono">{{ apiLog.apiCount() }}</span>
+      </div>
+
+      <div class="metric-pill metric-pill--success" title="Successful 2xx Responses">
+        <span class="metric-label">2xx OK</span>
+        <span class="metric-value font-mono">{{ apiLog.successCount() }}</span>
+      </div>
+
+      @if (apiLog.clientErrorCount() > 0) {
+        <div class="metric-pill metric-pill--warn" title="Client Errors (4xx)">
+          <span class="metric-label">4xx Err</span>
+          <span class="metric-value font-mono">{{ apiLog.clientErrorCount() }}</span>
+        </div>
+      }
+
+      @if (apiLog.serverErrorCount() > 0) {
+        <div class="metric-pill metric-pill--error" title="Server / Network Errors (5xx / 0)">
+          <span class="metric-label">5xx Err</span>
+          <span class="metric-value font-mono">{{ apiLog.serverErrorCount() }}</span>
+        </div>
+      }
+
+      <div class="metric-pill metric-pill--latency" title="Average Roundtrip Latency">
+        <span class="metric-label">Avg</span>
+        <span class="metric-value font-mono">{{ apiLog.averageDurationMs() }}ms</span>
+      </div>
+    </div>
+
+    <!-- Header Actions -->
+    <div class="log-header__actions">
+      <button
+        type="button"
+        class="header-action-btn"
+        [class.header-action-btn--warn]="apiLog.recording()"
+        (click)="toggleRecording()"
+        [pTooltip]="apiLog.recording() ? 'Pause live traffic capture' : 'Resume live capture'"
+        tooltipPosition="bottom"
+      >
+        <i [class]="apiLog.recording() ? 'pi pi-pause' : 'pi pi-play'"></i>
+        <span>{{ apiLog.recording() ? 'Pause' : 'Resume' }}</span>
+      </button>
+
+      <button
+        type="button"
+        class="header-action-btn"
+        (click)="exportLogs()"
+        [disabled]="apiLog.totalCount() === 0"
+        pTooltip="Export captured network logs as JSON"
+        tooltipPosition="bottom"
+      >
+        <i class="pi pi-download"></i>
+        <span>Export</span>
+      </button>
+
+      <button
+        type="button"
+        class="header-action-btn header-action-btn--danger"
+        (click)="clearLogs()"
+        [disabled]="apiLog.totalCount() === 0"
+        pTooltip="Clear all captured requests and events"
+        tooltipPosition="bottom"
+      >
+        <i class="pi pi-trash"></i>
+        <span>Clear</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- Filter & Search Toolbar -->
+  <div class="log-toolbar">
+    <!-- Search Bar -->
+    <div class="log-search-box">
+      <i class="pi pi-search search-icon"></i>
+      <input
+        type="text"
+        class="search-input"
+        placeholder="Filter by endpoint, status, query param, payload..."
+        [ngModel]="apiLog.searchQuery()"
+        (ngModelChange)="apiLog.searchQuery.set($event)"
+      />
+      @if (apiLog.searchQuery()) {
+        <button type="button" class="search-clear-btn" (click)="clearSearch()">
+          <i class="pi pi-times"></i>
+        </button>
+      }
+    </div>
+
+    <!-- Method Filter Chips -->
+    <div class="filter-group">
+      <span class="filter-group-label">Method:</span>
+      <div class="filter-chips">
+        @for (m of ['ALL', 'GET', 'POST', 'PUT', 'PATCH', 'DELETE']; track m) {
+          <button
+            type="button"
+            class="chip-btn"
+            [class.chip-btn--active]="apiLog.methodFilter() === m"
+            (click)="setMethodFilter(m)"
+          >
+            {{ m }}
+          </button>
+        }
+      </div>
+    </div>
+
+    <!-- Status Filter Chips -->
+    <div class="filter-group">
+      <span class="filter-group-label">Status:</span>
+      <div class="filter-chips">
+        @for (s of [
+          { key: 'ALL', label: 'All' },
+          { key: '2xx', label: '2xx' },
+          { key: '4xx', label: '4xx' },
+          { key: '5xx', label: '5xx' },
+          { key: 'ERR', label: 'Errors' }
+        ]; track s.key) {
+          <button
+            type="button"
+            class="chip-btn"
+            [class.chip-btn--active]="apiLog.statusFilter() === s.key"
+            (click)="setStatusFilter(s.key)"
+          >
+            {{ s.label }}
+          </button>
+        }
+      </div>
+    </div>
+
+    <!-- Type Filter -->
+    <div class="filter-group">
+      <span class="filter-group-label">Type:</span>
+      <div class="filter-chips">
+        <button
+          type="button"
+          class="chip-btn"
+          [class.chip-btn--active]="apiLog.typeFilter() === 'ALL'"
+          (click)="setTypeFilter('ALL')"
+        >
+          All ({{ apiLog.totalCount() }})
+        </button>
+        <button
+          type="button"
+          class="chip-btn"
+          [class.chip-btn--active]="apiLog.typeFilter() === 'api'"
+          (click)="setTypeFilter('api')"
+        >
+          API Calls ({{ apiLog.apiCount() }})
+        </button>
+        <button
+          type="button"
+          class="chip-btn"
+          [class.chip-btn--active]="apiLog.typeFilter() === 'event'"
+          (click)="setTypeFilter('event')"
+        >
+          Events ({{ apiLog.totalCount() - apiLog.apiCount() }})
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Split Master-Detail Layout -->
+  <div class="log-workbench">
+    <!-- Left Master: Request Stream List -->
+    <div class="log-stream-pane">
+      <div class="stream-header">
+        <span class="stream-title">
+          Traffic Stream ({{ apiLog.filteredLogs().length }} entries)
+        </span>
+        @if (copyFeedback()) {
+          <span class="stream-feedback animate-fade">
+            <i class="pi pi-check"></i> {{ copyFeedback() }}
+          </span>
+        }
+      </div>
+
+      <div class="stream-list">
+        @for (item of apiLog.filteredLogs(); track item.id) {
+          <!-- API Call Entry -->
+          @if (item.type === 'api') {
+            <div
+              class="stream-card"
+              [class.stream-card--active]="apiLog.selectedLogId() === item.id"
+              [class.stream-card--error]="item.status >= 400 || item.status === 0"
+              (click)="selectItem(item)"
+            >
+              <div class="stream-card__top">
+                <span class="method-badge font-mono" [class]="getMethodClass(item.method)">
+                  {{ item.method }}
+                </span>
+                <span class="status-badge font-mono" [class]="getStatusClass(item.status)">
+                  {{ item.status > 0 ? item.status : 'ERR' }}
+                </span>
+                <span class="stream-path font-mono" [title]="item.path">
+                  {{ item.path }}
+                </span>
+              </div>
+
+              <div class="stream-card__bottom">
+                <span class="stream-time">{{ formatTime(item.timestamp) }}</span>
+                <span class="latency-pill font-mono" [class]="getLatencyClass(item.durationMs)">
+                  <i class="pi pi-stopwatch"></i> {{ formatDuration(item.durationMs) }}
+                </span>
+              </div>
+
+              @if (item.error) {
+                <div class="stream-card__error" [title]="item.error">
+                  <i class="pi pi-exclamation-triangle"></i>
+                  <span>{{ item.error }}</span>
+                </div>
+              }
+            </div>
+          } @else {
+            <!-- Event Log Entry -->
+            <div
+              class="stream-card stream-card--event"
+              [class.stream-card--active]="apiLog.selectedLogId() === item.id"
+              (click)="selectItem(item)"
+            >
+              <div class="stream-card__top">
+                <span class="level-badge font-mono" [class]="getLevelClass(item.level)">
+                  {{ item.level }}
+                </span>
+                <span class="event-category font-mono">[{{ item.category }}]</span>
+                <span class="event-msg">{{ item.message }}</span>
+              </div>
+              <div class="stream-card__bottom">
+                <span class="stream-time">{{ formatTime(item.timestamp) }}</span>
+              </div>
+            </div>
+          }
+        } @empty {
+          <div class="stream-empty">
+            <i class="pi pi-inbox empty-icon"></i>
+            <h3>No Network Activity Recorded</h3>
+            <p>
+              @if (apiLog.totalCount() === 0) {
+                Make API calls in the Object Workspace or reload tabs to inspect live requests and responses.
+              } @else {
+                No requests match the active filters or search query.
+              }
+            </p>
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Right Detail: Deep Inspector -->
+    <div class="log-inspector-pane">
+      @if (selectedApiLog(); as log) {
+        <div class="inspector-card">
+          <!-- Inspector Header Banner -->
+          <div class="inspector-header">
+            <div class="inspector-header__main">
+              <span class="method-badge method-badge--lg font-mono" [class]="getMethodClass(log.method)">
+                {{ log.method }}
+              </span>
+              <span class="status-badge status-badge--lg font-mono" [class]="getStatusClass(log.status)">
+                {{ log.status }} {{ log.statusText }}
+              </span>
+              <span class="latency-pill latency-pill--lg font-mono" [class]="getLatencyClass(log.durationMs)">
+                <i class="pi pi-stopwatch"></i> {{ formatDuration(log.durationMs) }}
+              </span>
+              <span class="inspector-time font-mono">
+                <i class="pi pi-clock"></i> {{ formatTime(log.timestamp) }}
+              </span>
+            </div>
+
+            <!-- Header Quick Copy Actions -->
+            <div class="inspector-header__actions">
+              <button
+                type="button"
+                class="inspector-action-btn"
+                (click)="copyText(log.curl, 'cURL copied to clipboard!')"
+                pTooltip="Copy formatted cURL command"
+                tooltipPosition="bottom"
+              >
+                <i class="pi pi-copy"></i>
+                <span>Copy cURL</span>
+              </button>
+
+              @if (formattedResponseBody()) {
+                <button
+                  type="button"
+                  class="inspector-action-btn"
+                  (click)="copyText(formattedResponseBody(), 'Response JSON copied!')"
+                  pTooltip="Copy response payload"
+                  tooltipPosition="bottom"
+                >
+                  <i class="pi pi-download"></i>
+                  <span>Copy JSON</span>
+                </button>
+              }
+            </div>
+          </div>
+
+          <!-- URL Bar -->
+          <div class="inspector-url-bar font-mono">
+            <span class="url-label">URL:</span>
+            <span class="url-text" [title]="log.url">{{ log.url }}</span>
+            <button
+              type="button"
+              class="url-copy-btn"
+              (click)="copyText(log.url, 'URL copied!')"
+              pTooltip="Copy full URL"
+            >
+              <i class="pi pi-clone"></i>
+            </button>
+          </div>
+
+          <!-- Inspector Tabs Switcher -->
+          <div class="inspector-nav">
+            <button
+              type="button"
+              class="nav-tab-btn"
+              [class.nav-tab-btn--active]="inspectorTab() === 'response'"
+              (click)="inspectorTab.set('response')"
+            >
+              <i class="pi pi-arrow-circle-down"></i>
+              <span>Response Body</span>
+            </button>
+
+            <button
+              type="button"
+              class="nav-tab-btn"
+              [class.nav-tab-btn--active]="inspectorTab() === 'request'"
+              (click)="inspectorTab.set('request')"
+            >
+              <i class="pi pi-arrow-circle-up"></i>
+              <span>Request Payload</span>
+            </button>
+
+            <button
+              type="button"
+              class="nav-tab-btn"
+              [class.nav-tab-btn--active]="inspectorTab() === 'headers'"
+              (click)="inspectorTab.set('headers')"
+            >
+              <i class="pi pi-list"></i>
+              <span>Headers ({{ requestHeadersList().length }} / {{ responseHeadersList().length }})</span>
+            </button>
+
+            <button
+              type="button"
+              class="nav-tab-btn"
+              [class.nav-tab-btn--active]="inspectorTab() === 'curl'"
+              (click)="inspectorTab.set('curl')"
+            >
+              <i class="pi pi-terminal"></i>
+              <span>cURL Snippet</span>
+            </button>
+          </div>
+
+          <!-- Inspector Tab Content -->
+          <div class="inspector-body">
+            <!-- TAB 1: RESPONSE -->
+            @if (inspectorTab() === 'response') {
+              <div class="body-panel">
+                <div class="body-toolbar">
+                  <div class="body-toolbar__left">
+                    <span class="body-label">
+                      Response Data
+                      @if (log.status >= 200 && log.status < 300) {
+                        <span class="status-pill status-pill--ok">HTTP {{ log.status }}</span>
+                      } @else {
+                        <span class="status-pill status-pill--err">HTTP {{ log.status }} {{ log.statusText }}</span>
+                      }
+                    </span>
+                  </div>
+
+                  <div class="body-toolbar__right">
+                    <div class="mini-search">
+                      <i class="pi pi-search"></i>
+                      <input
+                        type="text"
+                        placeholder="Filter response lines..."
+                        [ngModel]="responseFilter()"
+                        (ngModelChange)="responseFilter.set($event)"
+                      />
+                      @if (responseFilter()) {
+                        <button type="button" class="mini-clear" (click)="responseFilter.set('')">
+                          <i class="pi pi-times"></i>
+                        </button>
+                      }
+                    </div>
+
+                    <button
+                      type="button"
+                      class="body-copy-btn"
+                      (click)="copyText(formattedResponseBody(), 'Response JSON copied!')"
+                    >
+                      <i class="pi pi-copy"></i> Copy
+                    </button>
+                  </div>
+                </div>
+
+                @if (filteredResponseBody()) {
+                  <pre class="json-code-block font-mono"><code>{{ filteredResponseBody() }}</code></pre>
+                } @else {
+                  <div class="body-empty">
+                    <i class="pi pi-info-circle"></i>
+                    <span>No response content (HTTP {{ log.status }} Empty Body)</span>
+                  </div>
+                }
+              </div>
+            }
+
+            <!-- TAB 2: REQUEST PAYLOAD -->
+            @if (inspectorTab() === 'request') {
+              <div class="body-panel">
+                <div class="body-toolbar">
+                  <span class="body-label">
+                    Request Payload ({{ log.method }})
+                  </span>
+
+                  @if (formattedRequestBody()) {
+                    <button
+                      type="button"
+                      class="body-copy-btn"
+                      (click)="copyText(formattedRequestBody(), 'Request JSON copied!')"
+                    >
+                      <i class="pi pi-copy"></i> Copy
+                    </button>
+                  }
+                </div>
+
+                @if (formattedRequestBody()) {
+                  <pre class="json-code-block font-mono"><code>{{ formattedRequestBody() }}</code></pre>
+                } @else {
+                  <div class="body-empty">
+                    <i class="pi pi-info-circle"></i>
+                    <span>No request payload sent for {{ log.method }} request.</span>
+                  </div>
+                }
+              </div>
+            }
+
+            <!-- TAB 3: HEADERS -->
+            @if (inspectorTab() === 'headers') {
+              <div class="headers-panel">
+                <!-- Request Headers -->
+                <div class="headers-block">
+                  <div class="headers-block__header">
+                    <span class="block-title">
+                      <i class="pi pi-arrow-up"></i> Request Headers ({{ requestHeadersList().length }})
+                    </span>
+                    <button
+                      type="button"
+                      class="mask-toggle-btn"
+                      (click)="toggleMaskAuth()"
+                      pTooltip="Toggle Bearer token masking"
+                    >
+                      <i [class]="maskAuthHeader() ? 'pi pi-eye-slash' : 'pi pi-eye'"></i>
+                      <span>{{ maskAuthHeader() ? 'Masked' : 'Revealed' }}</span>
+                    </button>
+                  </div>
+
+                  <table class="headers-table font-mono">
+                    <tbody>
+                      @for (h of requestHeadersList(); track h.key) {
+                        <tr>
+                          <td class="h-key">{{ h.key }}</td>
+                          <td class="h-val">{{ h.value }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- Response Headers -->
+                <div class="headers-block">
+                  <div class="headers-block__header">
+                    <span class="block-title">
+                      <i class="pi pi-arrow-down"></i> Response Headers ({{ responseHeadersList().length }})
+                    </span>
+                  </div>
+
+                  <table class="headers-table font-mono">
+                    <tbody>
+                      @for (h of responseHeadersList(); track h.key) {
+                        <tr>
+                          <td class="h-key">{{ h.key }}</td>
+                          <td class="h-val">{{ h.value }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            }
+
+            <!-- TAB 4: cURL SNIPPET -->
+            @if (inspectorTab() === 'curl') {
+              <div class="body-panel">
+                <div class="body-toolbar">
+                  <span class="body-label">
+                    Ready-to-run Bash / Terminal cURL Command
+                  </span>
+                  <button
+                    type="button"
+                    class="body-copy-btn"
+                    (click)="copyText(log.curl, 'cURL command copied!')"
+                  >
+                    <i class="pi pi-copy"></i> Copy cURL
+                  </button>
+                </div>
+
+                <pre class="curl-code-block font-mono"><code>{{ log.curl }}</code></pre>
+              </div>
+            }
+          </div>
+        </div>
+      } @else if (selectedEventLog(); as ev) {
+        <!-- Event Log Inspector -->
+        <div class="inspector-card">
+          <div class="inspector-header">
+            <div class="inspector-header__main">
+              <span class="level-badge level-badge--lg font-mono" [class]="getLevelClass(ev.level)">
+                {{ ev.level }}
+              </span>
+              <span class="event-category event-category--lg font-mono">
+                [{{ ev.category }}]
+              </span>
+              <span class="inspector-time font-mono">
+                <i class="pi pi-clock"></i> {{ formatTime(ev.timestamp) }}
+              </span>
+            </div>
+          </div>
+
+          <div class="event-details-panel">
+            <h3 class="event-message">{{ ev.message }}</h3>
+            @if (ev.details) {
+              <div class="event-json">
+                <span class="details-label font-mono">Context Details:</span>
+                <pre class="json-code-block font-mono"><code>{{ ev.details | json }}</code></pre>
+              </div>
+            }
+          </div>
+        </div>
+      } @else {
+        <div class="inspector-empty">
+          <i class="pi pi-desktop empty-icon"></i>
+          <h3>No Request Selected</h3>
+          <p>Click on any request or event in the left stream to inspect headers, payloads, latencies, and cURL commands.</p>
+        </div>
+      }
+    </div>
+  </div>
+</div>

@@ -1,0 +1,376 @@
+<div class="transform-studio">
+  <!-- Studio Topbar -->
+  <div class="studio-topbar">
+    <div class="studio-topbar__left">
+      <div class="transform-type-tag">
+        <i class="pi pi-sliders-h"></i>
+        <span class="type-name">{{ transformType() }}</span>
+      </div>
+      @if (isInternal()) {
+        <span class="system-badge">System Built-In</span>
+      }
+      <span class="meta-sep">&bull;</span>
+      <span class="meta-id font-mono">{{ tab().name || tab().objectId }}</span>
+    </div>
+
+    <div class="studio-topbar__right">
+      <!-- Reload Object Button -->
+      <button
+        type="button"
+        class="tool-btn"
+        (click)="reloadObject.emit()"
+        [disabled]="reloading()"
+        pTooltip="Reload latest transform definition from tenant"
+      >
+        <i class="pi pi-refresh" [class.pi-spin]="reloading()"></i>
+        <span>Reload</span>
+      </button>
+
+      @if (isEditMode()) {
+        <button type="button" class="tool-btn" (click)="formatJson()" pTooltip="Format JSON with 2 spaces">
+          <i class="pi pi-align-left"></i> Format
+        </button>
+        <button type="button" class="tool-btn" (click)="minifyJson()" pTooltip="Minify JSON">
+          <i class="pi pi-compress"></i> Minify
+        </button>
+      }
+      <button
+        type="button"
+        class="save-btn"
+        (click)="reviewDiff.emit()"
+        [disabled]="!tab().isDirty || !!tab().jsonError"
+        pTooltip="Review changes in differential modal"
+      >
+        <i class="pi pi-check"></i> Review Diff &amp; Save
+      </button>
+    </div>
+  </div>
+
+  <!-- Studio Main Canvas -->
+  <div class="studio-main">
+    <!-- Left: JSON Definition Editor -->
+    <div class="editor-section">
+      <div class="pane-header">
+        <div class="pane-header__left">
+          <span class="pane-title"><i class="pi pi-file"></i> Transform JSON Definition</span>
+          @if (tab().jsonError) {
+            <span class="error-pill" [title]="tab().jsonError">
+              <i class="pi pi-times-circle"></i> {{ tab().jsonError }}
+            </span>
+          } @else {
+            <span class="valid-pill">
+              <i class="pi pi-check-circle"></i> Valid JSON
+            </span>
+          }
+        </div>
+      </div>
+
+      <!-- Editor Body -->
+      @if (isEditMode()) {
+        <div class="code-container edit-view">
+          <div class="line-gutter font-mono" #editGutter>
+            @for (num of getLineNumbers(tab().editedCode); track num) {
+              <div class="line-num">{{ num }}</div>
+            }
+          </div>
+          <div class="code-editor-surface font-mono">
+            <pre class="code-backdrop" #editBackdrop aria-hidden="true"><code [innerHTML]="highlightedCodeHtml()"></code></pre>
+            <textarea
+              #codeArea
+              class="code-textarea font-mono"
+              [ngModel]="tab().editedCode"
+              (ngModelChange)="onJsonInput($event)"
+              (keydown)="handleKeyDown($event, codeArea)"
+              (scroll)="syncEditScroll(codeArea, editBackdrop, editGutter)"
+              spellcheck="false"
+              autocomplete="off"
+              autocorrect="off"
+              autocapitalize="off"
+            ></textarea>
+          </div>
+        </div>
+      } @else {
+        <!-- Syntax Highlighted View -->
+        <div class="code-container syntax-view">
+          <div class="syntax-scroll-pane font-mono">
+            <div class="line-gutter">
+              @for (line of highlightedLines(); track line.lineNum) {
+                <div class="line-num">{{ line.lineNum }}</div>
+              }
+            </div>
+            <div class="syntax-content">
+              @for (line of highlightedLines(); track line.lineNum) {
+                <div class="syntax-line" [innerHTML]="line.html"></div>
+              }
+            </div>
+          </div>
+        </div>
+      }
+    </div>
+
+    <!-- Right: Interactive Transform Test Simulator -->
+    <div class="simulator-section">
+      <div class="pane-header">
+        <span class="pane-title"><i class="pi pi-play"></i> Transform Test Simulator</span>
+
+        <!-- Engine Mode Switcher -->
+        <div class="engine-switch">
+          <button
+            type="button"
+            class="engine-btn"
+            [class.engine-btn--active]="simulatorMode() === 'previewApi'"
+            (click)="simulatorMode.set('previewApi')"
+            pTooltip="Test against live tenant identities via POST /identity-profiles/v1/identity-preview"
+          >
+            <i class="pi pi-cloud"></i> Preview API
+          </button>
+          <button
+            type="button"
+            class="engine-btn"
+            [class.engine-btn--active]="simulatorMode() === 'clientSide'"
+            (click)="simulatorMode.set('clientSide')"
+            pTooltip="Test locally in browser against mock JSON attributes"
+          >
+            <i class="pi pi-desktop"></i> Sandbox
+          </button>
+        </div>
+      </div>
+
+      <div class="simulator-body">
+        <!-- MODE 1: TENANT IDENTITY PREVIEW API (Default like in UI) -->
+        @if (simulatorMode() === 'previewApi') {
+          <div class="preview-api-form">
+            <!-- 1. Identity Selector Dropdown -->
+            <div class="sim-group">
+              <label class="sim-label">
+                <i class="pi pi-user"></i> Select Identity to Preview:
+              </label>
+
+              <div class="identity-dropdown-container">
+                <div
+                  class="identity-select-trigger"
+                  (click)="toggleDropdown()"
+                  [class.identity-select-trigger--open]="dropdownOpen()"
+                >
+                  @if (selectedIdentity(); as idn) {
+                    <div class="identity-trigger-content">
+                      <i class="pi pi-user identity-avatar-icon"></i>
+                      <div class="identity-trigger-details">
+                        <span class="identity-trigger-name">{{ idn.name }}</span>
+                        @if (idn.email) {
+                          <span class="identity-trigger-sub">{{ idn.email }}</span>
+                        }
+                      </div>
+                    </div>
+                    @if (idn.status) {
+                      <span class="status-pill status-pill--active">{{ idn.status }}</span>
+                    }
+                  } @else if (loadingIdentities()) {
+                    <span class="identity-placeholder">
+                      <i class="pi pi-spin pi-spinner"></i> Loading identities from tenant...
+                    </span>
+                  } @else {
+                    <span class="identity-placeholder">Choose an identity to preview...</span>
+                  }
+
+                  <i class="pi pi-chevron-down trigger-chevron" [class.trigger-chevron--up]="dropdownOpen()"></i>
+                </div>
+
+                <!-- Dropdown Overlay Panel -->
+                @if (dropdownOpen()) {
+                  <div class="identity-dropdown-menu">
+                    <div class="dropdown-search-box">
+                      <i class="pi pi-search search-icon"></i>
+                      <input
+                        type="text"
+                        class="search-input"
+                        placeholder="Search identities by name or email..."
+                        [ngModel]="identitySearchQuery()"
+                        (ngModelChange)="identitySearchQuery.set($event)"
+                        (click)="$event.stopPropagation()"
+                        autofocus
+                      />
+                    </div>
+
+                    <div class="dropdown-list">
+                      @for (identity of filteredIdentities(); track identity.id) {
+                        <div
+                          class="dropdown-item"
+                          [class.dropdown-item--selected]="identity.id === selectedIdentityId()"
+                          (click)="selectIdentity(identity)"
+                        >
+                          <div class="dropdown-item__main">
+                            <i class="pi pi-user dropdown-avatar"></i>
+                            <div class="dropdown-item__info">
+                              <span class="dropdown-name">{{ identity.name }}</span>
+                              @if (identity.email) {
+                                <span class="dropdown-sub">{{ identity.email }}</span>
+                              }
+                            </div>
+                          </div>
+                          @if (identity.status) {
+                            <span class="dropdown-badge">{{ identity.status }}</span>
+                          }
+                        </div>
+                      } @empty {
+                        <div class="dropdown-empty">
+                          <i class="pi pi-info-circle"></i> No identities match filter
+                        </div>
+                      }
+                    </div>
+                  </div>
+                }
+              </div>
+            </div>
+
+            <!-- 2. Target Identity Attribute -->
+            <div class="sim-group">
+              <label class="sim-label">
+                <i class="pi pi-tag"></i> Target Identity Attribute:
+              </label>
+              <select
+                class="sim-select font-mono"
+                [ngModel]="selectedAttribute()"
+                (ngModelChange)="selectedAttribute.set($event)"
+              >
+                @for (attr of standardAttributes; track attr.value) {
+                  <option [value]="attr.value">{{ attr.label }}</option>
+                }
+              </select>
+            </div>
+
+            <!-- Dirty baseline warning if transform has unsaved edits -->
+            @if (tab().isDirty) {
+              <div class="sim-warning-banner">
+                <i class="pi pi-exclamation-triangle"></i>
+                <div class="warning-text">
+                  Transform has unsaved edits. The Preview API evaluates against the persisted transform on the tenant.
+                  Click <strong>Review Diff &amp; Save</strong> to push updates, or test locally in Sandbox mode.
+                </div>
+              </div>
+            }
+
+            <!-- 3. Run Preview Button -->
+            <button
+              type="button"
+              class="sim-run-btn"
+              (click)="runIdentityPreview()"
+              [disabled]="previewing() || !selectedIdentityId()"
+            >
+              @if (previewing()) {
+                <i class="pi pi-spin pi-spinner"></i> Evaluating via Preview API...
+              } @else {
+                <i class="pi pi-bolt"></i> Run Identity Preview
+              }
+            </button>
+
+            <!-- 4. Preview Result Card -->
+            @if (previewResult(); as res) {
+              <div class="sim-result-card" [class.sim-result-card--error]="!res.success">
+                <div class="sim-result-header">
+                  <span class="sim-result-title">
+                    <i class="pi" [class.pi-check-circle]="res.success" [class.pi-times-circle]="!res.success"></i>
+                    {{ res.success ? 'Tenant Preview Evaluation' : 'Preview Evaluation Failed' }}
+                  </span>
+                  <span class="sim-engine-badge">POST /identity-profiles/v1/identity-preview</span>
+                </div>
+
+                @if (res.success) {
+                  <div class="preview-comparison">
+                    <div class="comp-col">
+                      <span class="comp-label">Current Value (Previous):</span>
+                      <div class="comp-val font-mono" [class.comp-val--empty]="res.previousValue === null">
+                        {{ res.previousValue !== null ? res.previousValue : '(empty / null)' }}
+                      </div>
+                    </div>
+
+                    <div class="comp-arrow">
+                      <i class="pi pi-arrow-right"></i>
+                    </div>
+
+                    <div class="comp-col comp-col--new">
+                      <span class="comp-label">Transformed Value (New):</span>
+                      <div class="comp-val comp-val--highlight font-mono" [class.comp-val--empty]="res.newValue === null">
+                        {{ res.newValue !== null ? res.newValue : '(empty / null)' }}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="preview-meta">
+                    <div class="meta-item">
+                      <span class="meta-label">Identity:</span>
+                      <span class="meta-value">{{ res.identityName }}</span>
+                    </div>
+                    <div class="meta-item">
+                      <span class="meta-label">Attribute:</span>
+                      <span class="meta-value font-mono">{{ res.attributeName }}</span>
+                    </div>
+                    <div class="meta-item">
+                      <span class="meta-label">Status:</span>
+                      <span class="meta-value text-success">
+                        {{ res.previousValue !== res.newValue ? 'Value Modified' : 'Unchanged' }}
+                      </span>
+                    </div>
+                  </div>
+                } @else {
+                  <div class="sim-error-box font-mono">
+                    <i class="pi pi-times-circle text-danger"></i>
+                    <span>{{ res.error }}</span>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        }
+
+        <!-- MODE 2: CLIENT-SIDE SANDBOX SIMULATOR -->
+        @else {
+          <div class="client-sim-form">
+            <div class="sim-group">
+              <label class="sim-label">Mock Identity / Account Attributes (JSON):</label>
+              <textarea
+                class="sim-input font-mono"
+                rows="5"
+                [ngModel]="testJsonAttributes()"
+                (ngModelChange)="testJsonAttributes.set($event)"
+                spellcheck="false"
+              ></textarea>
+            </div>
+
+            <button
+              type="button"
+              class="sim-run-btn"
+              (click)="runClientSimulation()"
+            >
+              <i class="pi pi-play"></i> Simulate in Sandbox
+            </button>
+
+            @if (simulationResult(); as res) {
+              <div class="sim-result-card" [class.sim-result-card--error]="!res.success">
+                <div class="sim-result-header">
+                  <span class="sim-result-title">
+                    <i class="pi" [class.pi-check-circle]="res.success" [class.pi-times-circle]="!res.success"></i>
+                    {{ res.success ? 'Sandbox Output' : 'Simulation Error' }}
+                  </span>
+                </div>
+
+                <div class="sim-output-box font-mono">
+                  {{ res.success ? res.output : res.error }}
+                </div>
+
+                <div class="sim-trace-section">
+                  <span class="sim-trace-title">Execution Trace:</span>
+                  <div class="sim-trace-list font-mono">
+                    @for (step of res.steps; track $index) {
+                      <div class="sim-trace-item">&gt; {{ step }}</div>
+                    }
+                  </div>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    </div>
+  </div>
+</div>

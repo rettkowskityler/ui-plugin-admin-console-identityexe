@@ -1,0 +1,173 @@
+<div class="diff-container">
+  <!-- Diff Toolbar / Header -->
+  <div class="diff-header">
+    <div class="diff-header__meta">
+      <div class="diff-target-badge">
+        <span class="diff-target-label">Target:</span>
+        <strong class="diff-target-tenant">{{ tenantOrg() }}</strong>
+        <span class="diff-sep">&bull;</span>
+        <span class="diff-target-type">{{ objectType() }}</span>
+        <span class="diff-sep">&bull;</span>
+        <span class="diff-target-name">{{ objectName() }}</span>
+      </div>
+
+      <div class="diff-stats">
+        <span class="stat-pill stat-additions" pTooltip="Lines added">
+          +{{ diff().additions }}
+        </span>
+        <span class="stat-pill stat-deletions" pTooltip="Lines removed">
+          -{{ diff().deletions }}
+        </span>
+        <span class="stat-pill stat-total">
+          {{ diff().changes }} changed lines
+        </span>
+      </div>
+    </div>
+
+    <div class="diff-header__actions">
+      <div class="view-toggle">
+        <button
+          type="button"
+          class="toggle-btn"
+          [class.toggle-btn--active]="viewMode() === 'unified'"
+          (click)="viewMode.set('unified')"
+        >
+          <i class="pi pi-bars"></i> Unified
+        </button>
+        <button
+          type="button"
+          class="toggle-btn"
+          [class.toggle-btn--active]="viewMode() === 'split'"
+          (click)="viewMode.set('split')"
+        >
+          <i class="pi pi-table"></i> Split
+        </button>
+      </div>
+
+      <button
+        type="button"
+        class="copy-btn"
+        (click)="copyDiff()"
+        pTooltip="Copy raw diff to clipboard"
+      >
+        <i class="pi" [class.pi-copy]="!copied()" [class.pi-check]="copied()"></i>
+        {{ copied() ? 'Copied!' : 'Copy Diff' }}
+      </button>
+    </div>
+  </div>
+
+  @if (diff().isIdentical) {
+    <div class="diff-empty">
+      <i class="pi pi-check-circle diff-empty__icon"></i>
+      <h4>No Changes Detected</h4>
+      <p>The modified content is identical to the current object in ISC.</p>
+    </div>
+  } @else {
+    <!-- Unified Mode View -->
+    @if (viewMode() === 'unified') {
+      <div class="diff-table-wrapper">
+        <table class="diff-table">
+          <tbody>
+            @for (line of diff().lines; track $index) {
+              <tr
+                class="diff-row"
+                [class.diff-row--added]="line.type === 'added'"
+                [class.diff-row--removed]="line.type === 'removed'"
+                [class.diff-row--unchanged]="line.type === 'unchanged'"
+              >
+                <td class="diff-cell diff-cell--num old-num">
+                  {{ line.oldLineNumber || '' }}
+                </td>
+                <td class="diff-cell diff-cell--num new-num">
+                  {{ line.newLineNumber || '' }}
+                </td>
+                <td class="diff-cell diff-cell--marker">
+                  @if (line.type === 'added') { + }
+                  @else if (line.type === 'removed') { - }
+                  @else { &nbsp; }
+                </td>
+                <td class="diff-cell diff-cell--content font-mono">
+                  @if (line.subHighlights && line.subHighlights.length > 0) {
+                    @for (tok of line.subHighlights; track $index) {
+                      <span [class.diff-word-highlight]="tok.isHighlight">{{ tok.text }}</span>
+                    }
+                  } @else {
+                    {{ line.content }}
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+    <!-- Split / Side-by-Side Mode View -->
+    @if (viewMode() === 'split') {
+      <div class="diff-split-wrapper">
+        <div class="split-pane split-pane--left">
+          <div class="split-pane__header">Current in ISC (Original)</div>
+          <table class="diff-table">
+            <tbody>
+              @for (leftLine of diff().leftLines; track $index) {
+                <tr
+                  class="diff-row"
+                  [class.diff-row--removed]="leftLine.type === 'removed'"
+                  [class.diff-row--unchanged]="leftLine.type === 'unchanged'"
+                >
+                  <td class="diff-cell diff-cell--num old-num">
+                    {{ leftLine.oldLineNumber || '' }}
+                  </td>
+                  <td class="diff-cell diff-cell--marker">
+                    {{ leftLine.type === 'removed' ? '-' : ' ' }}
+                  </td>
+                  <td class="diff-cell diff-cell--content font-mono">
+                    {{ leftLine.content }}
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div class="split-pane split-pane--right">
+          <div class="split-pane__header">Staged Changes (New)</div>
+          <table class="diff-table">
+            <tbody>
+              @for (rightLine of diff().rightLines; track $index) {
+                <tr
+                  class="diff-row"
+                  [class.diff-row--added]="rightLine.type === 'added'"
+                  [class.diff-row--unchanged]="rightLine.type === 'unchanged'"
+                >
+                  <td class="diff-cell diff-cell--num new-num">
+                    {{ rightLine.newLineNumber || '' }}
+                  </td>
+                  <td class="diff-cell diff-cell--marker">
+                    {{ rightLine.type === 'added' ? '+' : ' ' }}
+                  </td>
+                  <td class="diff-cell diff-cell--content font-mono">
+                    {{ rightLine.content }}
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+  }
+
+  <!-- Impact Warning Banner -->
+  <div class="diff-warning-banner">
+    <div class="diff-warning-banner__icon">
+      <i class="pi pi-exclamation-triangle"></i>
+    </div>
+    <div class="diff-warning-banner__text">
+      <strong>Live Tenant Modification Notice:</strong>
+      Confirming will directly push these changes to tenant
+      <span class="tenant-tag">{{ tenantOrg() }}</span>.
+      Ensure you have validated the JSON structure and attributes before committing.
+    </div>
+  </div>
+</div>

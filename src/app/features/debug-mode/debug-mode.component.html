@@ -1,0 +1,2249 @@
+<p-toast position="top-right" />
+
+<div class="vscode-workbench">
+  <!-- Main Workspace Layout -->
+  <div class="workbench-main" [class.workbench-main--resizing]="isResizingSidebar()">
+    <!-- Left Activity Bar -->
+    <aside class="activity-bar">
+      <div class="activity-bar__top">
+        <button
+          type="button"
+          class="activity-icon-btn"
+          [class.activity-icon-btn--active]="activeView() === 'explorer' && sidebarOpen()"
+          (click)="onExplorerIconClick()"
+          pTooltip="Object Browser"
+          tooltipPosition="right"
+        >
+          <i class="pi pi-folder"></i>
+        </button>
+        <button
+          type="button"
+          class="activity-icon-btn activity-icon-btn--logs"
+          [class.activity-icon-btn--active]="activeView() === 'logs'"
+          (click)="setActiveView('logs')"
+          pTooltip="API & Network Activity Console"
+          tooltipPosition="right"
+        >
+          <i class="pi pi-arrow-right-arrow-left"></i>
+          @if (apiLogService.hasErrors()) {
+            <span class="activity-badge activity-badge--error">{{ apiLogService.errorCount() }}</span>
+          } @else if (apiLogService.totalCount() > 0) {
+            <span class="activity-badge">{{ apiLogService.totalCount() }}</span>
+          }
+        </button>
+        <button
+          type="button"
+          class="activity-icon-btn"
+          (click)="openSpConfigExportModal()"
+          pTooltip="Tenant Config (SP-Config Export / Import)"
+          tooltipPosition="right"
+        >
+          <i class="pi pi-cloud-download"></i>
+        </button>
+        <button
+          type="button"
+          class="activity-icon-btn activity-icon-btn--tasks"
+          (click)="tasksDialogVisible.set(true)"
+          pTooltip="Task Monitor"
+          tooltipPosition="right"
+        >
+          <i class="pi pi-history"></i>
+          @if (trackedTasks().length > 0) {
+            <span class="activity-badge">{{ trackedTasks().length }}</span>
+          }
+        </button>
+      </div>
+    </aside>
+
+    <!-- Dedicated API & Network Log Viewer Page -->
+    @if (activeView() === 'logs') {
+      <div class="view-panel view-panel--logs">
+        <app-log-viewer (backToExplorer)="setActiveView('explorer')" />
+      </div>
+    }
+
+    <!-- Object Explorer & Main Workspace View -->
+    <div
+      class="view-panel view-panel--explorer"
+      [style.display]="activeView() === 'explorer' ? 'flex' : 'none'"
+    >
+      <!-- Explorer Sidebar -->
+    @if (sidebarOpen()) {
+      <aside
+        class="explorer-sidebar"
+        [class.explorer-sidebar--resizing]="isResizingSidebar()"
+        [style.width.px]="sidebarWidth()"
+      >
+        <div class="explorer-header">
+          <span class="explorer-title">
+            <i class="pi pi-compass"></i> Object Workspace
+          </span>
+          <div class="explorer-actions">
+            <div class="global-mode-switch">
+              <button
+                type="button"
+                class="global-mode-btn"
+                [class.global-mode-btn--active]="!isEditMode()"
+                (click)="isEditMode.set(false)"
+                pTooltip="View Mode: Syntax highlighting for all open windows"
+                tooltipPosition="bottom"
+              >
+                <i class="pi pi-eye"></i> View
+              </button>
+              <button
+                type="button"
+                class="global-mode-btn"
+                [class.global-mode-btn--active]="isEditMode()"
+                (click)="isEditMode.set(true)"
+                pTooltip="Edit Mode: Interactive editing for all open windows"
+                tooltipPosition="bottom"
+              >
+                <i class="pi pi-pencil"></i> Edit
+              </button>
+            </div>
+
+            @if (tabs().length > 0) {
+              <button
+                type="button"
+                class="icon-action-btn"
+                (click)="closeAllTabs()"
+                pTooltip="Close All Tabs"
+              >
+                <i class="pi pi-times"></i>
+              </button>
+            }
+            <button
+              type="button"
+              class="icon-action-btn"
+              (click)="toggleSidebar()"
+              pTooltip="Collapse Pane"
+            >
+              <i class="pi pi-chevron-left"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- Integrated Search inside Explorer Pop-out Pane -->
+        <div class="explorer-search">
+          <div class="global-search-wrapper">
+            <i class="pi pi-search search-icon"></i>
+            <input
+              type="text"
+              class="global-search-input"
+              placeholder="Search objects across all types..."
+              [ngModel]="explorerFilter()"
+              (ngModelChange)="explorerFilter.set($event)"
+            />
+            @if (explorerFilter()) {
+              <button
+                type="button"
+                class="clear-search-btn"
+                (click)="explorerFilter.set('')"
+                pTooltip="Clear Search"
+              >
+                <i class="pi pi-times"></i>
+              </button>
+            }
+          </div>
+        </div>
+
+        <!-- Tree Nodes for All 13 Object Types -->
+        <div class="explorer-tree">
+          @for (type of objectTypes; track type.key) {
+            <div class="tree-type-group" [class.tree-type-group--expanded]="isTypeExpanded(type.key)">
+              <div
+                class="tree-type-header"
+                (click)="toggleTypeExpanded(type.key)"
+                [pTooltip]="type.description"
+                tooltipPosition="right"
+              >
+                <div class="tree-type-header__left">
+                  <i
+                    class="pi tree-expand-arrow"
+                    [class.pi-chevron-down]="isTypeExpanded(type.key)"
+                    [class.pi-chevron-right]="!isTypeExpanded(type.key)"
+                  ></i>
+                  <i [class]="type.icon" class="tree-type-icon"></i>
+                  <span class="tree-type-label">{{ type.label }}</span>
+                </div>
+
+                <div class="tree-type-header__right">
+                  @if (type.supportsCreate) {
+                    <button
+                      type="button"
+                      class="type-add-btn"
+                      (click)="openNewResourceModal(type, $event)"
+                      pTooltip="New {{ type.label }}"
+                      tooltipPosition="top"
+                    >
+                      <i class="pi pi-plus"></i>
+                    </button>
+                  }
+                  @if (isTypeLoading(type.key)) {
+                    <i class="pi pi-spin pi-spinner loading-spinner"></i>
+                  } @else if (getTypeCount(type.key) !== null) {
+                    <span class="tree-count-pill">
+                      {{ explorerFilter() ? getTypeItems(type.key).length : getTypeCount(type.key) }}
+                    </span>
+                  }
+                  <button
+                    type="button"
+                    class="type-refresh-btn"
+                    (click)="refreshType(type.key, $event)"
+                    pTooltip="Refresh {{ type.label }}"
+                  >
+                    <i class="pi pi-sync"></i>
+                  </button>
+                </div>
+              </div>
+
+              <!-- Expanded Items -->
+              @if (isTypeExpanded(type.key)) {
+                <div class="tree-type-children">
+                  @if (isTypeLoading(type.key) && !typeItemsMap().has(type.key)) {
+                    <div class="tree-loading">
+                      <p-skeleton width="80%" height="18px" styleClass="tree-skeleton" />
+                      <p-skeleton width="65%" height="18px" styleClass="tree-skeleton" />
+                      <p-skeleton width="75%" height="18px" styleClass="tree-skeleton" />
+                    </div>
+                  } @else {
+                    @for (item of getTypeItems(type.key); track item.id) {
+                      @if (type.key === 'sources') {
+                        <!-- Source Item with Expandable Associated Objects -->
+                        <div class="tree-source-node" [class.tree-source-node--expanded]="isSourceExpanded(item.id)">
+                          <div
+                            class="tree-item tree-item--source"
+                            [class.tree-item--active]="activeTabId() === (type.key + ':' + item.id)"
+                            (click)="openObjectTab(type, item)"
+                            [title]="item.name + ' (' + item.id + ')'"
+                          >
+                            <div class="tree-item__main">
+                              <i
+                                class="pi tree-expand-arrow"
+                                [class.pi-chevron-down]="isSourceExpanded(item.id)"
+                                [class.pi-chevron-right]="!isSourceExpanded(item.id)"
+                                (click)="toggleSourceExpanded(item, $event)"
+                                pTooltip="Expand Source Objects"
+                              ></i>
+                              <i class="pi pi-database tree-source-icon"></i>
+                              <span class="tree-item-name">{{ item.name }}</span>
+                            </div>
+
+                            <div class="tree-item__actions">
+                              @if (getSourceSchemas(item.id).length > 0) {
+                                <span class="tree-count-pill" pTooltip="Schemas count">
+                                  {{ getSourceSchemas(item.id).length }} sch
+                                </span>
+                              }
+                              <button
+                                type="button"
+                                class="type-refresh-btn"
+                                (click)="pullSourceAssociated(item, $event)"
+                                [pTooltip]="isSourceAssocLoading(item.id) ? 'Pulling...' : 'Pull Schemas, Policies &amp; Subtypes'"
+                              >
+                                <i
+                                  class="pi"
+                                  [class.pi-spin]="isSourceAssocLoading(item.id)"
+                                  [class.pi-spinner]="isSourceAssocLoading(item.id)"
+                                  [class.pi-download]="!isSourceAssocLoading(item.id)"
+                                ></i>
+                              </button>
+                              @if (type.openWebUrl) {
+                                <button
+                                  type="button"
+                                  class="item-hover-btn"
+                                  (click)="openInWebUi(type, item, $event)"
+                                  pTooltip="Open in ISC Web UI"
+                                  tooltipPosition="top"
+                                >
+                                  <i class="pi pi-external-link"></i>
+                                </button>
+                              }
+                              @if (type.supportsClone) {
+                                <button
+                                  type="button"
+                                  class="item-hover-btn"
+                                  (click)="openCloneModal(type, item, $event)"
+                                  pTooltip="Clone Source"
+                                  tooltipPosition="top"
+                                >
+                                  <i class="pi pi-copy"></i>
+                                </button>
+                              }
+                              @if (type.supportsDelete) {
+                                <button
+                                  type="button"
+                                  class="item-hover-btn item-hover-btn--danger"
+                                  (click)="openDeleteModal(type, item, $event)"
+                                  pTooltip="Delete Source"
+                                  tooltipPosition="top"
+                                >
+                                  <i class="pi pi-trash"></i>
+                                </button>
+                              }
+                            </div>
+                          </div>
+
+                          <!-- Nested Associated Objects for this Source -->
+                          @if (isSourceExpanded(item.id)) {
+                            <div class="tree-source-children">
+                              @if (isSourceAssocLoading(item.id) && !sourceAssociatedMap().has(item.id)) {
+                                <div class="tree-loading">
+                                  <p-skeleton width="85%" height="16px" styleClass="tree-skeleton" />
+                                  <p-skeleton width="70%" height="16px" styleClass="tree-skeleton" />
+                                  <p-skeleton width="80%" height="16px" styleClass="tree-skeleton" />
+                                </div>
+                              } @else {
+                                <!-- 1. Schemas -->
+                                <div class="tree-subgroup">
+                                  <div class="tree-subgroup-header" (click)="toggleSourceSubgroup(item.id, 'schemas', $event)">
+                                    <div class="tree-subgroup-header__left">
+                                      <i
+                                        class="pi tree-expand-arrow"
+                                        [class.pi-chevron-down]="isSubgroupOpen(item.id, 'schemas')"
+                                        [class.pi-chevron-right]="!isSubgroupOpen(item.id, 'schemas')"
+                                      ></i>
+                                      <i class="pi pi-table sub-group-icon"></i>
+                                      <span class="subgroup-title">Schemas</span>
+                                    </div>
+                                    <span class="tree-count-pill">{{ getSourceSchemas(item.id).length }}</span>
+                                  </div>
+                                  @if (isSubgroupOpen(item.id, 'schemas')) {
+                                    <div class="tree-subgroup-items">
+                                      @for (schema of getSourceSchemas(item.id); track schema.id) {
+                                        <div
+                                          class="tree-sub-item"
+                                          [class.tree-sub-item--active]="activeTabId() === ('schema:' + item.id + ':' + schema.id)"
+                                          (click)="openSourceSchemaTab(item, schema)"
+                                          [title]="schema.name + ' (' + (schema.type || 'Object Schema') + ')'"
+                                        >
+                                          <i class="pi pi-file-code sub-leaf-icon"></i>
+                                          <span class="tree-item-name">{{ schema.name }}</span>
+                                          @if (schema.type) {
+                                            <span class="tree-item-sub font-mono">{{ schema.type }}</span>
+                                          }
+                                        </div>
+                                      } @empty {
+                                        <div class="tree-nested-empty">No schemas found</div>
+                                      }
+                                    </div>
+                                  }
+                                </div>
+
+                                <!-- 2. Provisioning Policies -->
+                                <div class="tree-subgroup">
+                                  <div class="tree-subgroup-header" (click)="toggleSourceSubgroup(item.id, 'policies', $event)">
+                                    <div class="tree-subgroup-header__left">
+                                      <i
+                                        class="pi tree-expand-arrow"
+                                        [class.pi-chevron-down]="isSubgroupOpen(item.id, 'policies')"
+                                        [class.pi-chevron-right]="!isSubgroupOpen(item.id, 'policies')"
+                                      ></i>
+                                      <i class="pi pi-file-edit sub-group-icon"></i>
+                                      <span class="subgroup-title">Provisioning Policies</span>
+                                    </div>
+                                    <span class="tree-count-pill">{{ getSourcePolicies(item.id).length }}</span>
+                                  </div>
+                                  @if (isSubgroupOpen(item.id, 'policies')) {
+                                    <div class="tree-subgroup-items">
+                                      @for (policy of getSourcePolicies(item.id); track policy.id) {
+                                        <div
+                                          class="tree-sub-item"
+                                          [class.tree-sub-item--active]="activeTabId() === ('policy:' + item.id + ':' + policy.id)"
+                                          (click)="openSourcePolicyTab(item, policy)"
+                                          [title]="policy.name"
+                                        >
+                                          <i class="pi pi-file-edit sub-leaf-icon"></i>
+                                          <span class="tree-item-name">{{ policy.name }}</span>
+                                        </div>
+                                      } @empty {
+                                        <div class="tree-nested-empty">No policies configured</div>
+                                      }
+                                    </div>
+                                  }
+                                </div>
+
+                                <!-- 3. Attribute Sync Config -->
+                                <div
+                                  class="tree-sub-item tree-sub-item--standalone"
+                                  [class.tree-sub-item--active]="activeTabId() === ('sync-config:' + item.id + ':attribute-sync-config')"
+                                  (click)="openSourceSyncConfigTab(item)"
+                                  title="View/Edit Attribute Sync Configuration"
+                                >
+                                  <div class="tree-subgroup-header__left">
+                                    <span class="tree-expand-arrow-spacer"></span>
+                                    <i class="pi pi-sync sub-group-icon sub-group-icon--sync"></i>
+                                    <span class="subgroup-title">Attribute Sync Config</span>
+                                  </div>
+                                  <span class="tree-count-pill font-mono">{{ getSyncAttrSummary(item.id) }}</span>
+                                </div>
+
+                                <!-- 4. Machine Account Subtypes -->
+                                <div class="tree-subgroup">
+                                  <div class="tree-subgroup-header" (click)="toggleSourceSubgroup(item.id, 'subtypes', $event)">
+                                    <div class="tree-subgroup-header__left">
+                                      <i
+                                        class="pi tree-expand-arrow"
+                                        [class.pi-chevron-down]="isSubgroupOpen(item.id, 'subtypes')"
+                                        [class.pi-chevron-right]="!isSubgroupOpen(item.id, 'subtypes')"
+                                      ></i>
+                                      <i class="pi pi-server sub-group-icon"></i>
+                                      <span class="subgroup-title">Machine Account Subtypes</span>
+                                    </div>
+                                    <span class="tree-count-pill">{{ getSourceSubtypes(item.id).length }}</span>
+                                  </div>
+                                  @if (isSubgroupOpen(item.id, 'subtypes')) {
+                                    <div class="tree-subgroup-items">
+                                      @for (sub of getSourceSubtypes(item.id); track sub.id) {
+                                        <div
+                                          class="tree-sub-item"
+                                          [class.tree-sub-item--active]="activeTabId() === ('subtype:' + item.id + ':' + sub.id)"
+                                          (click)="openSourceSubtypeTab(item, sub)"
+                                          [title]="sub.name"
+                                        >
+                                          <i class="pi pi-server sub-leaf-icon"></i>
+                                          <span class="tree-item-name">{{ sub.name }}</span>
+                                          @if (sub.type) {
+                                            <span class="tree-item-sub font-mono">{{ sub.type }}</span>
+                                          }
+                                        </div>
+                                      } @empty {
+                                        <div class="tree-nested-empty">No machine subtypes defined</div>
+                                      }
+                                    </div>
+                                  }
+                                </div>
+
+                                <!-- 5. Attached Connector Rules (if any) -->
+                                @if (getSourceRules(item.id).length > 0) {
+                                  <div class="tree-subgroup">
+                                    <div class="tree-subgroup-header" (click)="toggleSourceSubgroup(item.id, 'rules', $event)">
+                                      <div class="tree-subgroup-header__left">
+                                        <i
+                                          class="pi tree-expand-arrow"
+                                          [class.pi-chevron-down]="isSubgroupOpen(item.id, 'rules')"
+                                          [class.pi-chevron-right]="!isSubgroupOpen(item.id, 'rules')"
+                                        ></i>
+                                        <i class="pi pi-code sub-group-icon"></i>
+                                        <span class="subgroup-title">Attached Rules</span>
+                                      </div>
+                                      <span class="tree-count-pill">{{ getSourceRules(item.id).length }}</span>
+                                    </div>
+                                    @if (isSubgroupOpen(item.id, 'rules')) {
+                                      <div class="tree-subgroup-items">
+                                        @for (rule of getSourceRules(item.id); track rule.id) {
+                                          <div
+                                            class="tree-sub-item"
+                                            (click)="openSourceRuleTab(rule)"
+                                            [title]="rule.name"
+                                          >
+                                            <i class="pi pi-code sub-leaf-icon"></i>
+                                            <span class="tree-item-name">{{ rule.name }}</span>
+                                          </div>
+                                        }
+                                      </div>
+                                    }
+                                  </div>
+                                }
+                              }
+                            </div>
+                          }
+                        </div>
+                      } @else {
+                        <!-- General Objects (Roles, Transforms, Rules, etc.) -->
+                        <div
+                          class="tree-item"
+                          [class.tree-item--active]="activeTabId() === (type.key + ':' + item.id)"
+                          (click)="openObjectTab(type, item)"
+                          [title]="item.name + ' (' + item.id + ')'"
+                        >
+                          <div class="tree-item__main">
+                            <i class="pi pi-file tree-item-icon"></i>
+                            <span class="tree-item-name">{{ item.name }}</span>
+                            @if (item.type) {
+                              <span class="tree-item-sub font-mono">{{ item.type }}</span>
+                            }
+                          </div>
+
+                          <div class="tree-item__actions">
+                            @if (type.openWebUrl) {
+                              <button
+                                type="button"
+                                class="item-hover-btn"
+                                (click)="openInWebUi(type, item, $event)"
+                                pTooltip="Open in ISC Web UI"
+                                tooltipPosition="top"
+                              >
+                                <i class="pi pi-external-link"></i>
+                              </button>
+                            }
+                            @if (type.supportsClone) {
+                              <button
+                                type="button"
+                                class="item-hover-btn"
+                                (click)="openCloneModal(type, item, $event)"
+                                pTooltip="Clone {{ type.label }}"
+                                tooltipPosition="top"
+                              >
+                                <i class="pi pi-copy"></i>
+                              </button>
+                            }
+                            @if (type.supportsDelete) {
+                              <button
+                                type="button"
+                                class="item-hover-btn item-hover-btn--danger"
+                                (click)="openDeleteModal(type, item, $event)"
+                                pTooltip="Delete {{ item.name }}"
+                                tooltipPosition="top"
+                              >
+                                <i class="pi pi-trash"></i>
+                              </button>
+                            }
+                          </div>
+                        </div>
+                      }
+                    } @empty {
+                      <div class="tree-empty-message">
+                        <i class="pi pi-info-circle"></i>
+                        <span>No items match filter</span>
+                      </div>
+                    }
+
+                    @if (hasMoreItems(type.key)) {
+                      <div class="tree-load-more">
+                        <button
+                          type="button"
+                          class="load-more-btn"
+                          (click)="loadMoreItems(type.key, $event)"
+                          [disabled]="isTypeLoadingMore(type.key)"
+                        >
+                          @if (isTypeLoadingMore(type.key)) {
+                            <i class="pi pi-spin pi-spinner"></i>
+                            <span>Loading more...</span>
+                          } @else {
+                            <i class="pi pi-arrow-down"></i>
+                            <span>Load More ({{ getLoadedCount(type.key) }} of {{ getTypeCount(type.key) }})</span>
+                          }
+                        </button>
+                      </div>
+                    }
+                  }
+                </div>
+              }
+            </div>
+          }
+        </div>
+      </aside>
+
+      <!-- Adjustable Resizer Splitter -->
+      <div
+        class="sidebar-resizer"
+        [class.sidebar-resizer--active]="isResizingSidebar()"
+        (mousedown)="startSidebarResize($event)"
+        (dblclick)="resetSidebarWidth()"
+        pTooltip="Drag to resize Object Workspace | Double-click to reset (320px)"
+        tooltipPosition="right"
+      >
+        <div class="sidebar-resizer__knob"></div>
+      </div>
+    }
+
+    <!-- Main Workspace / Editor Area -->
+    <main class="editor-workspace">
+      <!-- Tabs Bar -->
+      <div class="workbench-tab-bar">
+        <div class="tab-scroll-container">
+          @for (tab of tabs(); track tab.id) {
+            <div
+              class="editor-tab"
+              [class.editor-tab--active]="activeTabId() === tab.id"
+              [class.editor-tab--dirty]="tab.isDirty"
+              (click)="selectTab(tab.id)"
+              [title]="tab.name + ' [' + tab.objectType.label + ']'"
+            >
+              <i [class]="tab.objectType.icon" class="tab-type-icon"></i>
+              <span class="tab-title">{{ tab.name }}</span>
+              @if (tab.isDirty) {
+                <span class="tab-dirty-indicator" title="Unsaved changes">&bull;</span>
+              }
+              <button
+                type="button"
+                class="tab-close-btn"
+                (click)="closeTab(tab.id, $event)"
+                pTooltip="Close"
+              >
+                <i class="pi pi-times"></i>
+              </button>
+            </div>
+          }
+        </div>
+
+        @if (tabs().length > 1) {
+          <div class="tab-bar-controls">
+            <button
+              type="button"
+              class="tab-bar-btn"
+              (click)="closeAllTabs()"
+              pTooltip="Close All Tabs"
+            >
+              <i class="pi pi-times"></i> Close All
+            </button>
+          </div>
+        }
+      </div>
+
+      <!-- Active Tab Content Area -->
+      <div class="workbench-canvas">
+        @if (activeTab(); as curTab) {
+          <!-- Source Actions Quick Bar when a Source is open -->
+          @if (curTab.objectType.key === 'sources' && !curTab.associatedType) {
+            <div class="source-associated-bar">
+              <div class="source-associated-bar__top">
+                <span class="source-associated-bar__title">
+                  <i class="pi pi-database"></i> Source Actions for <strong>{{ curTab.name }}</strong>
+                </span>
+                <div class="source-action-group">
+                  <!-- Aggregate Dropdown -->
+                  <div class="source-dropdown-wrapper">
+                    <button
+                      type="button"
+                      class="source-action-btn source-action-btn--agg"
+                      [class.source-action-btn--active]="activeSourceDropdown() === 'aggregate'"
+                      (click)="toggleSourceDropdown('aggregate', $event)"
+                      pTooltip="Run account or entitlement aggregation"
+                      tooltipPosition="bottom"
+                    >
+                      <i class="pi pi-sync"></i>
+                      <span>Aggregate</span>
+                      <i class="pi pi-chevron-down chevron-icon"></i>
+                    </button>
+
+                    @if (activeSourceDropdown() === 'aggregate') {
+                      <div class="source-action-dropdown-menu">
+                        <div class="dropdown-menu-header">
+                          <i class="pi pi-sync"></i>
+                          <span>Aggregation Operations</span>
+                        </div>
+
+                        <button
+                          type="button"
+                          class="dropdown-menu-item"
+                          (click)="selectSourceAction('aggregate-accounts', curTab)"
+                        >
+                          <div class="menu-item-icon-col menu-item-icon-col--agg">
+                            <i class="pi pi-users"></i>
+                          </div>
+                          <div class="menu-item-content">
+                            <div class="menu-item-title-row">
+                              <span class="menu-item-title">Aggregate Accounts</span>
+                              <span class="menu-item-tag menu-item-tag--blue">Optimized Delta</span>
+                            </div>
+                            <span class="menu-item-desc">Aggregates new and modified accounts from target</span>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          class="dropdown-menu-item"
+                          (click)="selectSourceAction('aggregate-entitlements', curTab)"
+                        >
+                          <div class="menu-item-icon-col menu-item-icon-col--agg">
+                            <i class="pi pi-key"></i>
+                          </div>
+                          <div class="menu-item-content">
+                            <div class="menu-item-title-row">
+                              <span class="menu-item-title">Aggregate Entitlements</span>
+                              <span class="menu-item-tag menu-item-tag--blue">Discovery</span>
+                            </div>
+                            <span class="menu-item-desc">Discovers groups, roles, and catalog attributes</span>
+                          </div>
+                        </button>
+
+                        <div class="dropdown-menu-divider"></div>
+
+                        <button
+                          type="button"
+                          class="dropdown-menu-item"
+                          (click)="selectSourceAction('aggregate-accounts-no-opt', curTab)"
+                        >
+                          <div class="menu-item-icon-col menu-item-icon-col--purple">
+                            <i class="pi pi-bolt"></i>
+                          </div>
+                          <div class="menu-item-content">
+                            <div class="menu-item-title-row">
+                              <span class="menu-item-title">Aggregate Accounts without Optimization</span>
+                              <span class="menu-item-tag menu-item-tag--purple">Full Re-sync</span>
+                            </div>
+                            <span class="menu-item-desc">Bypasses delta cache to re-correlate all accounts</span>
+                          </div>
+                        </button>
+                      </div>
+                    }
+                  </div>
+
+                  <!-- Reset Dropdown -->
+                  <div class="source-dropdown-wrapper">
+                    <button
+                      type="button"
+                      class="source-action-btn source-action-btn--danger"
+                      [class.source-action-btn--active]="activeSourceDropdown() === 'reset'"
+                      (click)="toggleSourceDropdown('reset', $event)"
+                      pTooltip="Danger Zone: Reset source data"
+                      tooltipPosition="bottom"
+                    >
+                      <i class="pi pi-trash"></i>
+                      <span>Reset</span>
+                      <i class="pi pi-chevron-down chevron-icon"></i>
+                    </button>
+
+                    @if (activeSourceDropdown() === 'reset') {
+                      <div class="source-action-dropdown-menu source-action-dropdown-menu--danger">
+                        <div class="dropdown-menu-header dropdown-menu-header--danger">
+                          <i class="pi pi-exclamation-triangle"></i>
+                          <span>Destructive Reset Actions</span>
+                        </div>
+
+                        <button
+                          type="button"
+                          class="dropdown-menu-item dropdown-menu-item--warn"
+                          (click)="selectSourceAction('accounts', curTab)"
+                        >
+                          <div class="menu-item-icon-col menu-item-icon-col--warn">
+                            <i class="pi pi-users"></i>
+                          </div>
+                          <div class="menu-item-content">
+                            <div class="menu-item-title-row">
+                              <span class="menu-item-title">Reset Accounts</span>
+                              <span class="menu-item-tag menu-item-tag--warn">Accounts Only</span>
+                            </div>
+                            <span class="menu-item-desc">Permanently deletes all accounts aggregated on source</span>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          class="dropdown-menu-item dropdown-menu-item--warn"
+                          (click)="selectSourceAction('entitlements', curTab)"
+                        >
+                          <div class="menu-item-icon-col menu-item-icon-col--warn">
+                            <i class="pi pi-key"></i>
+                          </div>
+                          <div class="menu-item-content">
+                            <div class="menu-item-title-row">
+                              <span class="menu-item-title">Reset Entitlements</span>
+                              <span class="menu-item-tag menu-item-tag--warn">Entitlements Only</span>
+                            </div>
+                            <span class="menu-item-desc">Clears all discovered entitlements and catalog mappings</span>
+                          </div>
+                        </button>
+
+                        <div class="dropdown-menu-divider"></div>
+
+                        <button
+                          type="button"
+                          class="dropdown-menu-item dropdown-menu-item--danger"
+                          (click)="selectSourceAction('source', curTab)"
+                        >
+                          <div class="menu-item-icon-col menu-item-icon-col--danger">
+                            <i class="pi pi-refresh"></i>
+                          </div>
+                          <div class="menu-item-content">
+                            <div class="menu-item-title-row">
+                              <span class="menu-item-title">Reset Source</span>
+                              <span class="menu-item-tag menu-item-tag--danger">Full Wipe</span>
+                            </div>
+                            <span class="menu-item-desc">Purges BOTH accounts &amp; entitlements permanently</span>
+                          </div>
+                        </button>
+                      </div>
+                    }
+                  </div>
+
+                  <!-- Diagnostics Dropdown -->
+                  <div class="source-dropdown-wrapper">
+                    <button
+                      type="button"
+                      class="source-action-btn source-action-btn--diag"
+                      [class.source-action-btn--active]="activeSourceDropdown() === 'diagnostics'"
+                      (click)="toggleSourceDropdown('diagnostics', $event)"
+                      pTooltip="Connection test, object peek, cluster ping &amp; connector logging"
+                      tooltipPosition="bottom"
+                    >
+                      <i class="pi pi-wrench"></i>
+                      <span>Diagnostics</span>
+                      <i class="pi pi-chevron-down chevron-icon"></i>
+                    </button>
+
+                    @if (activeSourceDropdown() === 'diagnostics') {
+                      <div class="source-action-dropdown-menu">
+                        <div class="dropdown-menu-header">
+                          <i class="pi pi-wrench"></i>
+                          <span>Source Diagnostics</span>
+                        </div>
+
+                        <button
+                          type="button"
+                          class="dropdown-menu-item"
+                          (click)="testSource(curTab); closeSourceDropdown()"
+                          [disabled]="testingConnection()"
+                        >
+                          <div class="menu-item-icon-col menu-item-icon-col--agg">
+                            <i class="pi pi-wifi"></i>
+                          </div>
+                          <div class="menu-item-content">
+                            <div class="menu-item-title-row">
+                              <span class="menu-item-title">Test Connection</span>
+                              <span class="menu-item-tag menu-item-tag--blue">Health Check</span>
+                            </div>
+                            <span class="menu-item-desc">Validate credentials, network connectivity &amp; configuration</span>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          class="dropdown-menu-item"
+                          (click)="peekSource(curTab); closeSourceDropdown()"
+                          [disabled]="peekingObjects()"
+                        >
+                          <div class="menu-item-icon-col menu-item-icon-col--purple">
+                            <i class="pi pi-eye"></i>
+                          </div>
+                          <div class="menu-item-content">
+                            <div class="menu-item-title-row">
+                              <span class="menu-item-title">Peek Live Objects</span>
+                              <span class="menu-item-tag menu-item-tag--purple">Live Sample</span>
+                            </div>
+                            <span class="menu-item-desc">Inspect first 10 raw objects directly from target endpoint</span>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          class="dropdown-menu-item"
+                          (click)="pingClusterAction(curTab); closeSourceDropdown()"
+                        >
+                          <div class="menu-item-icon-col menu-item-icon-col--agg">
+                            <i class="pi pi-server"></i>
+                          </div>
+                          <div class="menu-item-content">
+                            <div class="menu-item-title-row">
+                              <span class="menu-item-title">Ping VA Cluster</span>
+                              <span class="menu-item-tag menu-item-tag--blue">Network</span>
+                            </div>
+                            <span class="menu-item-desc">Verify reachability of assigned Virtual Appliances</span>
+                          </div>
+                        </button>
+
+                        <div class="dropdown-menu-divider"></div>
+
+                        <button
+                          type="button"
+                          class="dropdown-menu-item"
+                          (click)="openLoggingDialog(curTab); closeSourceDropdown()"
+                        >
+                          <div class="menu-item-icon-col menu-item-icon-col--warn">
+                            <i class="pi pi-align-left"></i>
+                          </div>
+                          <div class="menu-item-content">
+                            <div class="menu-item-title-row">
+                              <span class="menu-item-title">Enable Debug Logging</span>
+                              <span class="menu-item-tag menu-item-tag--warn">Trace</span>
+                            </div>
+                            <span class="menu-item-desc">Turn on temporary TRACE/DEBUG connector logs on cluster</span>
+                          </div>
+                        </button>
+                      </div>
+                    }
+                  </div>
+
+                  <!-- Data & CSV Dropdown -->
+                  <div class="source-dropdown-wrapper">
+                    <button
+                      type="button"
+                      class="source-action-btn source-action-btn--data"
+                      [class.source-action-btn--active]="activeSourceDropdown() === 'data'"
+                      (click)="toggleSourceDropdown('data', $event)"
+                      pTooltip="Export &amp; import account and entitlement data"
+                      tooltipPosition="bottom"
+                    >
+                      <i class="pi pi-file-excel"></i>
+                      <span>Data &amp; CSV</span>
+                      <i class="pi pi-chevron-down chevron-icon"></i>
+                    </button>
+
+                    @if (activeSourceDropdown() === 'data') {
+                      <div class="source-action-dropdown-menu">
+                        <div class="dropdown-menu-header">
+                          <i class="pi pi-file-excel"></i>
+                          <span>CSV Data Interchange</span>
+                        </div>
+
+                        <button
+                          type="button"
+                          class="dropdown-menu-item"
+                          (click)="exportSourceAccountsCsv(curTab); closeSourceDropdown()"
+                        >
+                          <div class="menu-item-icon-col menu-item-icon-col--agg">
+                            <i class="pi pi-download"></i>
+                          </div>
+                          <div class="menu-item-content">
+                            <div class="menu-item-title-row">
+                              <span class="menu-item-title">Export Accounts CSV</span>
+                              <span class="menu-item-tag menu-item-tag--blue">Export</span>
+                            </div>
+                            <span class="menu-item-desc">Download all aggregated accounts on this source as CSV</span>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          class="dropdown-menu-item"
+                          (click)="triggerCsvImport(curTab, 'accounts'); closeSourceDropdown()"
+                        >
+                          <div class="menu-item-icon-col menu-item-icon-col--purple">
+                            <i class="pi pi-upload"></i>
+                          </div>
+                          <div class="menu-item-content">
+                            <div class="menu-item-title-row">
+                              <span class="menu-item-title">Import Accounts CSV</span>
+                              <span class="menu-item-tag menu-item-tag--purple">Bulk Load</span>
+                            </div>
+                            <span class="menu-item-desc">Upload CSV to load or correlate accounts</span>
+                          </div>
+                        </button>
+
+                        <button
+                          type="button"
+                          class="dropdown-menu-item"
+                          (click)="triggerCsvImport(curTab, 'entitlements'); closeSourceDropdown()"
+                        >
+                          <div class="menu-item-icon-col menu-item-icon-col--purple">
+                            <i class="pi pi-upload"></i>
+                          </div>
+                          <div class="menu-item-content">
+                            <div class="menu-item-title-row">
+                              <span class="menu-item-title">Import Entitlements CSV</span>
+                              <span class="menu-item-tag menu-item-tag--purple">Bulk Load</span>
+                            </div>
+                            <span class="menu-item-desc">Upload CSV to aggregate entitlement definitions</span>
+                          </div>
+                        </button>
+                      </div>
+                    }
+                  </div>
+
+                  <button
+                    type="button"
+                    class="source-action-btn source-action-btn--standard"
+                    (click)="openCloneModal(curTab.objectType, curTab.activeItem)"
+                    pTooltip="Clone Source Definition"
+                    tooltipPosition="bottom"
+                  >
+                    <i class="pi pi-copy"></i>
+                    <span>Clone</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="source-action-btn source-action-btn--standard"
+                    (click)="openInWebUi(curTab.objectType, curTab.activeItem)"
+                    pTooltip="Open Source in SailPoint Web UI"
+                    tooltipPosition="bottom"
+                  >
+                    <i class="pi pi-external-link"></i>
+                    <span>Open in Web UI</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          }
+
+          <!-- Workflow Action Bar -->
+          @if (curTab.objectType.key === 'workflows') {
+            <div class="source-associated-bar">
+              <div class="source-associated-bar__top">
+                <span class="source-associated-bar__title">
+                  <i class="pi pi-sitemap"></i> Workflow: <strong>{{ curTab.name }}</strong>
+                </span>
+                <div class="source-action-group">
+                  <button
+                    type="button"
+                    class="source-action-btn"
+                    [class.source-action-btn--success]="curTab.activeItem.enabled"
+                    [class.source-action-btn--warn]="!curTab.activeItem.enabled"
+                    (click)="toggleWorkflowEnabled(curTab)"
+                    [pTooltip]="curTab.activeItem.enabled ? 'Click to Disable Workflow' : 'Click to Enable Workflow'"
+                    tooltipPosition="bottom"
+                  >
+                    <i class="pi" [class.pi-check-circle]="curTab.activeItem.enabled" [class.pi-ban]="!curTab.activeItem.enabled"></i>
+                    <span>{{ curTab.activeItem.enabled ? 'Enabled' : 'Disabled' }}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="source-action-btn source-action-btn--agg"
+                    (click)="openWorkflowTestDialog(curTab)"
+                    pTooltip="Execute test run with input payload"
+                    tooltipPosition="bottom"
+                  >
+                    <i class="pi pi-play"></i>
+                    <span>Test Workflow</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="source-action-btn source-action-btn--standard"
+                    (click)="openWorkflowHistoryDialog(curTab)"
+                    pTooltip="View past execution history and run status"
+                    tooltipPosition="bottom"
+                  >
+                    <i class="pi pi-history"></i>
+                    <span>Execution History</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="source-action-btn source-action-btn--standard"
+                    (click)="exportWorkflow(curTab)"
+                    pTooltip="Export sanitized workflow configuration JSON"
+                    tooltipPosition="bottom"
+                  >
+                    <i class="pi pi-download"></i>
+                    <span>Export</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="source-action-btn source-action-btn--standard"
+                    (click)="openInWebUi(curTab.objectType, curTab.activeItem)"
+                    pTooltip="Open Workflow in SailPoint Web UI"
+                    tooltipPosition="bottom"
+                  >
+                    <i class="pi pi-external-link"></i>
+                    <span>Open in Web UI</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          }
+
+          <!-- Connector Rule Action Bar -->
+          @if (curTab.objectType.key === 'connector-rules') {
+            <div class="source-associated-bar">
+              <div class="source-associated-bar__top">
+                <span class="source-associated-bar__title">
+                  <i class="pi pi-code"></i> Connector Rule: <strong>{{ curTab.name }}</strong>
+                </span>
+                <div class="source-action-group">
+                  <button
+                    type="button"
+                    class="source-action-btn source-action-btn--agg"
+                    (click)="validateRule(curTab)"
+                    pTooltip="Validate BeanShell script syntax via ISC cloud compiler"
+                    tooltipPosition="bottom"
+                  >
+                    <i class="pi pi-check"></i>
+                    <span>Validate Script</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="source-action-btn source-action-btn--standard"
+                    (click)="exportRuleScript(curTab)"
+                    pTooltip="Export script to standalone .bsh file"
+                    tooltipPosition="bottom"
+                  >
+                    <i class="pi pi-download"></i>
+                    <span>Export .bsh</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="source-action-btn source-action-btn--standard"
+                    (click)="uploadRuleScript(curTab)"
+                    pTooltip="Import script from local file"
+                    tooltipPosition="bottom"
+                  >
+                    <i class="pi pi-upload"></i>
+                    <span>Upload Script</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="source-action-btn source-action-btn--standard"
+                    (click)="openInWebUi(curTab.objectType, curTab.activeItem)"
+                    pTooltip="Open Connector Rule in SailPoint Web UI"
+                    tooltipPosition="bottom"
+                  >
+                    <i class="pi pi-external-link"></i>
+                    <span>Open in Web UI</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          }
+
+          <!-- Identity Profile Action Bar -->
+          @if (curTab.objectType.key === 'identity-profiles') {
+            <div class="source-associated-bar">
+              <div class="source-associated-bar__top">
+                <span class="source-associated-bar__title">
+                  <i class="pi pi-id-card"></i> Identity Profile: <strong>{{ curTab.name }}</strong>
+                </span>
+                <div class="source-action-group">
+                  <button
+                    type="button"
+                    class="source-action-btn source-action-btn--agg"
+                    (click)="refreshProfileIdentities(curTab)"
+                    pTooltip="Queue identity refresh for all identities under this profile"
+                    tooltipPosition="bottom"
+                  >
+                    <i class="pi pi-sync"></i>
+                    <span>Refresh All Identities</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="source-action-btn source-action-btn--standard"
+                    (click)="openInWebUi(curTab.objectType, curTab.activeItem)"
+                    pTooltip="Open Identity Profile in SailPoint Web UI"
+                    tooltipPosition="bottom"
+                  >
+                    <i class="pi pi-external-link"></i>
+                    <span>Open in Web UI</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          }
+
+          <!-- Public Identity Action Bar -->
+          @if (curTab.objectType.key === 'public-identities') {
+            <div class="source-associated-bar">
+              <div class="source-associated-bar__top">
+                <span class="source-associated-bar__title">
+                  <i class="pi pi-user"></i> Identity: <strong>{{ curTab.name }}</strong>
+                </span>
+                <div class="source-action-group">
+                  <button
+                    type="button"
+                    class="source-action-btn source-action-btn--agg"
+                    (click)="syncIdentityAttrs(curTab)"
+                    pTooltip="Synchronize attributes across linked source accounts"
+                    tooltipPosition="bottom"
+                  >
+                    <i class="pi pi-sync"></i>
+                    <span>Sync Attrs</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="source-action-btn source-action-btn--standard"
+                    (click)="processIdentity(curTab)"
+                    pTooltip="Re-process identity logic, correlation &amp; roles"
+                    tooltipPosition="bottom"
+                  >
+                    <i class="pi pi-cog"></i>
+                    <span>Process</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="source-action-btn source-action-btn--standard"
+                    (click)="inviteIdentity(curTab)"
+                    pTooltip="Send invitation email to identity"
+                    tooltipPosition="bottom"
+                  >
+                    <i class="pi pi-envelope"></i>
+                    <span>Invite</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="source-action-btn source-action-btn--standard"
+                    (click)="openIdentityAccessDialog(curTab)"
+                    pTooltip="View roles, access profiles &amp; entitlements"
+                    tooltipPosition="bottom"
+                  >
+                    <i class="pi pi-key"></i>
+                    <span>View Access</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="source-action-btn source-action-btn--standard"
+                    (click)="openIdentityAccountsDialog(curTab)"
+                    pTooltip="View and manage source accounts"
+                    tooltipPosition="bottom"
+                  >
+                    <i class="pi pi-server"></i>
+                    <span>Accounts</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="source-action-btn source-action-btn--standard"
+                    (click)="openIdentityEventsDialog(curTab)"
+                    pTooltip="View audit event history"
+                    tooltipPosition="bottom"
+                  >
+                    <i class="pi pi-list"></i>
+                    <span>Audit Events</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="source-action-btn source-action-btn--standard"
+                    (click)="openInWebUi(curTab.objectType, curTab.activeItem)"
+                    pTooltip="Open Identity in SailPoint Web UI"
+                    tooltipPosition="bottom"
+                  >
+                    <i class="pi pi-external-link"></i>
+                    <span>Open in Web UI</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          }
+
+          <!-- Notification Template Action Bar -->
+          @if (curTab.objectType.key === 'notification-templates') {
+            <div class="source-associated-bar">
+              <div class="source-associated-bar__top">
+                <span class="source-associated-bar__title">
+                  <i class="pi pi-envelope"></i> Template: <strong>{{ curTab.name }}</strong>
+                </span>
+                <div class="source-action-group">
+                  <button
+                    type="button"
+                    class="source-action-btn source-action-btn--agg"
+                    (click)="openTestEmailDialog(curTab)"
+                    pTooltip="Send a rendered test email to a recipient"
+                    tooltipPosition="bottom"
+                  >
+                    <i class="pi pi-send"></i>
+                    <span>Send Test Email</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    class="source-action-btn source-action-btn--standard"
+                    (click)="openInWebUi(curTab.objectType, curTab.activeItem)"
+                    pTooltip="Open Template in SailPoint Web UI"
+                    tooltipPosition="bottom"
+                  >
+                    <i class="pi pi-external-link"></i>
+                    <span>Open in Web UI</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          }
+
+          <!-- Connector Rule Studio -->
+          @if (curTab.objectType.key === 'connector-rules') {
+            <app-connector-rule-studio
+              [tab]="curTab"
+              [isEditMode]="isEditMode()"
+              [reloading]="reloadingTab()"
+              (tabChange)="onTabChange($event)"
+              (reviewDiff)="openDiffForTab(curTab)"
+              (reloadObject)="reloadTab(curTab)"
+            />
+          }
+          <!-- Transform Studio -->
+          @else if (curTab.objectType.key === 'transforms') {
+            <app-transform-studio
+              [tab]="curTab"
+              [isEditMode]="isEditMode()"
+              [reloading]="reloadingTab()"
+              (tabChange)="onTabChange($event)"
+              (reviewDiff)="openDiffForTab(curTab)"
+              (reloadObject)="reloadTab(curTab)"
+            />
+          }
+          <!-- General High-Fidelity JSON Editor -->
+          @else {
+            <app-json-editor
+              [tab]="curTab"
+              [isEditMode]="isEditMode()"
+              [reloading]="reloadingTab()"
+              (tabChange)="onTabChange($event)"
+              (reviewDiff)="openDiffForTab(curTab)"
+              (reloadObject)="reloadTab(curTab)"
+            />
+          }
+        } @else {
+          <!-- Empty Workspace Canvas -->
+          <div class="welcome-canvas">
+            <div class="welcome-card">
+              <h2 class="welcome-title">Administrator Console</h2>
+              <p class="welcome-desc">
+                Select an object type from the Explorer sidebar on the left to inspect, edit, or simulate live configurations on tenant
+                <code class="tenant-code">{{ tenantOrg() }}</code>.
+              </p>
+
+              <div class="welcome-grid">
+                @for (type of objectTypes; track type.key) {
+                  <div class="welcome-type-card" (click)="toggleTypeExpanded(type.key)">
+                    <div class="welcome-type-card__icon">
+                      <i [class]="type.icon"></i>
+                    </div>
+                    <div class="welcome-type-card__info">
+                      <div class="welcome-type-card__title-row">
+                        <h4 class="welcome-type-card__title">{{ type.label }}</h4>
+                        @if (getTypeCount(type.key) !== null) {
+                          <span class="tree-count-pill">{{ getTypeCount(type.key) }}</span>
+                        }
+                      </div>
+                      <p class="welcome-type-card__desc">{{ type.description }}</p>
+                    </div>
+                  </div>
+                }
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+
+      <!-- Bottom Status Bar -->
+      <footer class="workbench-status-bar">
+        <div class="status-bar__left">
+          <span class="status-item">
+            <i class="pi pi-check-circle text-success"></i>
+            {{ tenantOrg() }}
+          </span>
+          <span class="status-sep">|</span>
+          <span class="status-item">
+            <i class="pi pi-folder"></i>
+            {{ objectTypes.length }} Object Types
+          </span>
+          @if (activeTab(); as curTab) {
+            <span class="status-sep">|</span>
+            <span class="status-item font-mono">
+              {{ curTab.objectType.endpoint }}
+            </span>
+          }
+        </div>
+
+        <div class="status-bar__right">
+          <button
+            type="button"
+            class="status-item status-item--clickable"
+            (click)="setActiveView('logs')"
+            pTooltip="Open API & Network Activity Console"
+            tooltipPosition="top"
+          >
+            <i class="pi pi-arrow-right-arrow-left"></i>
+            {{ apiLogService.totalCount() }} API Calls
+            @if (apiLogService.hasErrors()) {
+              <span class="status-badge status-badge--error">{{ apiLogService.errorCount() }}</span>
+            }
+          </button>
+          <span class="status-sep">|</span>
+          @if (activeTab(); as curTab) {
+            <span class="status-item font-mono">
+              {{ curTab.objectType.key === 'connector-rules' ? 'Java / BeanShell & JSON' : 'JSON' }}
+            </span>
+            <span class="status-sep">|</span>
+            <span class="status-item">UTF-8</span>
+          }
+        </div>
+      </footer>
+    </main>
+  </div>
+</div>
+</div>
+
+<!-- Pre-Commit Differential Review Dialog -->
+<p-dialog
+  header="Pre-Commit Differential Review"
+  [(visible)]="diffDialogVisible"
+  [modal]="true"
+  [draggable]="false"
+  [resizable]="false"
+  [style]="{ width: '92vw', maxWidth: '1400px', height: '88vh' }"
+  styleClass="diff-modal"
+  [closable]="!saving()"
+>
+  <div class="modal-content-wrapper">
+    @if (saving()) {
+      <p-progressBar mode="indeterminate" styleClass="saving-progress-bar" />
+    }
+
+    @if (currentDiff(); as diff) {
+      <app-diff-viewer
+        [diff]="diff"
+        [objectName]="diffTab()?.name || 'Object'"
+        [objectType]="diffTab()?.objectType?.label || 'Object Type'"
+        [tenantOrg]="tenantOrg()"
+      />
+    }
+  </div>
+
+  <ng-template #footer>
+    <div class="diff-modal-footer">
+      <button
+        type="button"
+        class="modal-btn modal-btn--secondary"
+        (click)="cancelDiff()"
+        [disabled]="saving()"
+      >
+        <i class="pi pi-times"></i> Cancel
+      </button>
+
+      <button
+        type="button"
+        class="modal-btn modal-btn--primary"
+        (click)="confirmSave()"
+        [disabled]="saving()"
+      >
+        @if (saving()) {
+          <i class="pi pi-spin pi-spinner"></i> Deploying to Tenant...
+        } @else {
+          <i class="pi pi-cloud-upload"></i> Confirm &amp; Push to Live Tenant
+        }
+      </button>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<!-- Source Reset Confirmation Dialog (VS Code Style) -->
+<p-dialog
+  [header]="getResetDialogTitle()"
+  [(visible)]="resetDialogVisible"
+  [modal]="true"
+  [draggable]="false"
+  [resizable]="false"
+  [style]="{ width: '500px', maxWidth: '92vw' }"
+  styleClass="reset-confirm-modal"
+  [closable]="!resettingSource()"
+>
+  <div class="reset-modal-body">
+    @if (resettingSource()) {
+      <p-progressBar mode="indeterminate" styleClass="reset-progress-bar" />
+    }
+
+    <div
+      class="reset-modal-banner"
+      [class.reset-modal-banner--danger]="resetAction() === 'source'"
+      [class.reset-modal-banner--agg]="!isResetActionDestructive()"
+    >
+      <i
+        class="pi"
+        [class.pi-exclamation-triangle]="isResetActionDestructive() && resetAction() !== 'source'"
+        [class.pi-refresh]="resetAction() === 'source'"
+        [class.pi-bolt]="resetAction() === 'aggregate-accounts-no-opt'"
+        [class.pi-sync]="!isResetActionDestructive() && resetAction() !== 'aggregate-accounts-no-opt'"
+      ></i>
+      <div class="reset-modal-banner__text">
+        <h4>{{ getResetDialogHeader() }}</h4>
+        <p>{{ getResetDialogDescription() }}</p>
+      </div>
+    </div>
+
+    @if (resetTargetTab(); as tab) {
+      <div class="reset-target-details">
+        <div class="detail-row">
+          <span class="detail-label">Source Name:</span>
+          <span class="detail-value font-mono font-bold">{{ tab.name }}</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-label">Source ID:</span>
+          <span class="detail-value font-mono">{{ tab.objectId }}</span>
+        </div>
+        @if (getResetCloudExternalId(); as extId) {
+          <div class="detail-row">
+            <span class="detail-label">Cloud External ID:</span>
+            <span class="detail-value font-mono">{{ extId }}</span>
+          </div>
+        }
+      </div>
+    }
+
+    @if (isResetActionDestructive()) {
+      <div class="reset-warning-note">
+        <i class="pi pi-info-circle"></i>
+        <span>Note: If a Source Owner identity owns an account on this source, ISC may reject the reset until ownership is temporarily reassigned.</span>
+      </div>
+    } @else {
+      <div class="reset-warning-note">
+        <i class="pi pi-info-circle"></i>
+        <span>Note: Aggregation task executes asynchronously on the ISC tenant. You can monitor progress in Admin Console under Monitor &gt; Task Results.</span>
+      </div>
+    }
+  </div>
+
+  <ng-template #footer>
+    <div class="reset-modal-footer">
+      <button
+        type="button"
+        class="modal-btn modal-btn--secondary"
+        (click)="cancelReset()"
+        [disabled]="resettingSource()"
+      >
+        <i class="pi pi-times"></i> Cancel
+      </button>
+
+      <button
+        type="button"
+        class="modal-btn"
+        [class.modal-btn--warn]="isResetActionDestructive() && resetAction() !== 'source'"
+        [class.modal-btn--danger]="resetAction() === 'source'"
+        [class.modal-btn--primary]="!isResetActionDestructive()"
+        (click)="executeReset()"
+        [disabled]="resettingSource()"
+      >
+        @if (resettingSource()) {
+          <i class="pi pi-spin pi-spinner"></i> Executing...
+        } @else {
+          <i
+            class="pi"
+            [class.pi-trash]="isResetActionDestructive() && resetAction() !== 'source'"
+            [class.pi-refresh]="resetAction() === 'source'"
+            [class.pi-sync]="!isResetActionDestructive()"
+          ></i>
+          {{ getResetConfirmButtonLabel() }}
+        }
+      </button>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<!-- 1. New Resource Dialog -->
+<p-dialog
+  [header]="'Create New ' + (newResourceType()?.label || 'Resource')"
+  [(visible)]="newResourceDialogVisible"
+  [modal]="true"
+  [style]="{ width: '480px', maxWidth: '92vw' }"
+  styleClass="custom-feature-dialog"
+  [closable]="!creatingResource()"
+>
+  <div class="dialog-body-stack">
+    <p class="dialog-instruction-text">
+      Enter the name or identifier for the new {{ newResourceType()?.label }}. A pre-formatted schema template will be initialized for live deployment.
+    </p>
+    <div class="form-field-group">
+      <label class="form-field-label">Resource Name</label>
+      <input
+        type="text"
+        class="custom-dialog-input"
+        placeholder="e.g. My New Resource"
+        [ngModel]="newResourceName()"
+        (ngModelChange)="newResourceName.set($event)"
+        (keydown.enter)="confirmCreateResource()"
+        autofocus
+      />
+    </div>
+  </div>
+  <ng-template #footer>
+    <div class="reset-modal-footer">
+      <button type="button" class="modal-btn modal-btn--secondary" (click)="newResourceDialogVisible.set(false)" [disabled]="creatingResource()">
+        <i class="pi pi-times"></i> Cancel
+      </button>
+      <button type="button" class="modal-btn modal-btn--primary" (click)="confirmCreateResource()" [disabled]="creatingResource() || !newResourceName().trim()">
+        @if (creatingResource()) {
+          <i class="pi pi-spin pi-spinner"></i> Creating...
+        } @else {
+          <i class="pi pi-plus"></i> Create Resource
+        }
+      </button>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<!-- 2. Delete Confirmation Dialog -->
+<p-dialog
+  [header]="'Delete ' + (deleteTargetType()?.label || 'Resource')"
+  [(visible)]="deleteDialogVisible"
+  [modal]="true"
+  [style]="{ width: '480px', maxWidth: '92vw' }"
+  styleClass="custom-feature-dialog"
+  [closable]="!isDeleting()"
+>
+  <div class="dialog-body-stack">
+    <div class="dialog-danger-banner">
+      <i class="pi pi-exclamation-triangle"></i>
+      <div>
+        <h4>Permanent Deletion</h4>
+        <p>Are you sure you want to delete <strong>{{ deleteTargetItem()?.name }}</strong>? This action directly removes the configuration from tenant <code>{{ tenantOrg() }}</code> and cannot be undone.</p>
+      </div>
+    </div>
+    <div class="form-field-group">
+      <label class="form-field-label">Type <strong>{{ deleteTargetItem()?.name }}</strong> to confirm:</label>
+      <input
+        type="text"
+        class="custom-dialog-input"
+        placeholder="Enter name to confirm"
+        [ngModel]="deleteConfirmInput()"
+        (ngModelChange)="deleteConfirmInput.set($event)"
+      />
+    </div>
+  </div>
+  <ng-template #footer>
+    <div class="reset-modal-footer">
+      <button type="button" class="modal-btn modal-btn--secondary" (click)="deleteDialogVisible.set(false)" [disabled]="isDeleting()">
+        Cancel
+      </button>
+      <button
+        type="button"
+        class="modal-btn modal-btn--danger"
+        (click)="confirmDelete()"
+        [disabled]="isDeleting() || deleteConfirmInput() !== deleteTargetItem()?.name"
+      >
+        @if (isDeleting()) {
+          <i class="pi pi-spin pi-spinner"></i> Deleting...
+        } @else {
+          <i class="pi pi-trash"></i> Delete Permanently
+        }
+      </button>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<!-- 3. Clone Resource Dialog -->
+<p-dialog
+  [header]="'Clone ' + (cloneTargetType()?.label || 'Resource')"
+  [(visible)]="cloneDialogVisible"
+  [modal]="true"
+  [style]="{ width: '480px', maxWidth: '92vw' }"
+  styleClass="custom-feature-dialog"
+  [closable]="!isCloning()"
+>
+  <div class="dialog-body-stack">
+    <p class="dialog-instruction-text">
+      Cloning strips immutable tenant attributes (id, cloudExternalId, timestamps) and creates an identical copy under a new name.
+    </p>
+    <div class="form-field-group">
+      <label class="form-field-label">Cloned Resource Name</label>
+      <input
+        type="text"
+        class="custom-dialog-input"
+        placeholder="New cloned name"
+        [ngModel]="cloneNewName()"
+        (ngModelChange)="cloneNewName.set($event)"
+        (keydown.enter)="confirmClone()"
+      />
+    </div>
+  </div>
+  <ng-template #footer>
+    <div class="reset-modal-footer">
+      <button type="button" class="modal-btn modal-btn--secondary" (click)="cloneDialogVisible.set(false)" [disabled]="isCloning()">
+        Cancel
+      </button>
+      <button type="button" class="modal-btn modal-btn--primary" (click)="confirmClone()" [disabled]="isCloning() || !cloneNewName().trim()">
+        @if (isCloning()) {
+          <i class="pi pi-spin pi-spinner"></i> Cloning...
+        } @else {
+          <i class="pi pi-copy"></i> Confirm Clone
+        }
+      </button>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<!-- 4. Peek Live Objects Dialog -->
+<p-dialog
+  header="Peek Live Source Objects"
+  [(visible)]="peekDialogVisible"
+  [modal]="true"
+  [style]="{ width: '80vw', maxWidth: '1000px', height: '75vh' }"
+  styleClass="custom-feature-dialog"
+>
+  <div class="dialog-scroll-body">
+    @if (peekResults().length === 0) {
+      <div class="dialog-empty-state">
+        <i class="pi pi-eye-slash"></i>
+        <p>No objects returned by peek-resource-objects endpoint.</p>
+      </div>
+    } @else {
+      <div class="peek-summary-bar">
+        <span>Returned <strong>{{ peekResults().length }}</strong> live objects directly from connector</span>
+      </div>
+      <div class="peek-cards-stack">
+        @for (obj of peekResults(); track $index) {
+          <div class="peek-card">
+            <div class="peek-card-header font-mono">Object #{{ $index + 1 }}</div>
+            <pre class="peek-json font-mono">{{ obj | json }}</pre>
+          </div>
+        }
+      </div>
+    }
+  </div>
+  <ng-template #footer>
+    <button type="button" class="modal-btn modal-btn--secondary" (click)="peekDialogVisible.set(false)">
+      Close
+    </button>
+  </ng-template>
+</p-dialog>
+
+<!-- 5. Enable Debug Logging Dialog -->
+<p-dialog
+  header="Enable Connector Debug Logging"
+  [(visible)]="loggingDialogVisible"
+  [modal]="true"
+  [style]="{ width: '450px', maxWidth: '92vw' }"
+  styleClass="custom-feature-dialog"
+>
+  <div class="dialog-body-stack">
+    <p class="dialog-instruction-text">
+      Sets log-level to <strong>TRACE / DEBUG</strong> on the Virtual Appliance cluster executing this source. Logging automatically resets after the chosen duration.
+    </p>
+    <div class="form-field-group">
+      <label class="form-field-label">Logging Duration (Minutes)</label>
+      <select
+        class="custom-dialog-select"
+        [ngModel]="loggingDurationMinutes()"
+        (ngModelChange)="loggingDurationMinutes.set($event)"
+      >
+        <option [ngValue]="15">15 Minutes</option>
+        <option [ngValue]="30">30 Minutes (Recommended)</option>
+        <option [ngValue]="60">60 Minutes</option>
+        <option [ngValue]="120">120 Minutes (2 Hours)</option>
+      </select>
+    </div>
+  </div>
+  <ng-template #footer>
+    <div class="reset-modal-footer">
+      <button type="button" class="modal-btn modal-btn--secondary" (click)="loggingDialogVisible.set(false)">
+        Cancel
+      </button>
+      <button type="button" class="modal-btn modal-btn--primary" (click)="activeTab() && confirmEnableLogging(activeTab()!)">
+        <i class="pi pi-bolt"></i> Enable Logging
+      </button>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<!-- 6. Workflow Test Run Dialog -->
+<p-dialog
+  header="Test Workflow Execution"
+  [(visible)]="workflowTestDialogVisible"
+  [modal]="true"
+  [style]="{ width: '650px', maxWidth: '92vw', height: '80vh' }"
+  styleClass="custom-feature-dialog"
+>
+  <div class="dialog-scroll-body">
+    <p class="dialog-instruction-text">
+      Provide JSON input to pass into the workflow start trigger:
+    </p>
+    <div class="form-field-group">
+      <label class="form-field-label">Input Payload (JSON)</label>
+      <textarea
+        class="custom-dialog-textarea font-mono"
+        rows="8"
+        [ngModel]="workflowTestInput()"
+        (ngModelChange)="workflowTestInput.set($event)"
+      ></textarea>
+    </div>
+
+    @if (workflowTestResult()) {
+      <div class="test-result-box">
+        <div class="test-result-header">
+          <i class="pi pi-check-circle text-success"></i> Execution Response
+        </div>
+        <pre class="test-result-json font-mono">{{ workflowTestResult() | json }}</pre>
+      </div>
+    }
+  </div>
+  <ng-template #footer>
+    <div class="reset-modal-footer">
+      <button type="button" class="modal-btn modal-btn--secondary" (click)="workflowTestDialogVisible.set(false)">
+        Close
+      </button>
+      <button type="button" class="modal-btn modal-btn--primary" (click)="activeTab() && executeWorkflowTest(activeTab()!)" [disabled]="testingWorkflow()">
+        @if (testingWorkflow()) {
+          <i class="pi pi-spin pi-spinner"></i> Executing...
+        } @else {
+          <i class="pi pi-play"></i> Run Test
+        }
+      </button>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<!-- 7. Workflow Execution History Dialog -->
+<p-dialog
+  header="Workflow Execution History"
+  [(visible)]="workflowHistoryDialogVisible"
+  [modal]="true"
+  [style]="{ width: '850px', maxWidth: '95vw', height: '80vh' }"
+  styleClass="custom-feature-dialog"
+>
+  <div class="dialog-scroll-body">
+    @if (loadingWorkflowHistory()) {
+      <div class="dialog-loading-box">
+        <i class="pi pi-spin pi-spinner"></i> Loading execution history...
+      </div>
+    } @else if (workflowExecutions().length === 0) {
+      <div class="dialog-empty-state">
+        <i class="pi pi-history"></i>
+        <p>No recorded executions found for this workflow.</p>
+      </div>
+    } @else {
+      <table class="custom-workbench-table">
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>Execution ID</th>
+            <th>Started</th>
+            <th>Completed</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (run of workflowExecutions(); track run.id) {
+            <tr>
+              <td>
+                <span class="custom-status-tag" [class.custom-status-tag--success]="run.status === 'Completed'" [class.custom-status-tag--danger]="run.status === 'Failed'">
+                  {{ run.status || 'UNKNOWN' }}
+                </span>
+              </td>
+              <td class="font-mono text-sm">{{ run.id }}</td>
+              <td class="text-sm">{{ run.startTime || run.started }}</td>
+              <td class="text-sm">{{ run.endTime || run.completed || '-' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </div>
+  <ng-template #footer>
+    <button type="button" class="modal-btn modal-btn--secondary" (click)="workflowHistoryDialogVisible.set(false)">
+      Close
+    </button>
+  </ng-template>
+</p-dialog>
+
+<!-- 8. Identity Access Portfolio Dialog -->
+<p-dialog
+  header="Identity Access Portfolio"
+  [(visible)]="identityAccessDialogVisible"
+  [modal]="true"
+  [style]="{ width: '850px', maxWidth: '95vw', height: '80vh' }"
+  styleClass="custom-feature-dialog"
+>
+  <div class="dialog-scroll-body">
+    @if (loadingIdentityAccess()) {
+      <div class="dialog-loading-box">
+        <i class="pi pi-spin pi-spinner"></i> Pulling roles, access profiles &amp; entitlements...
+      </div>
+    } @else {
+      <!-- Roles -->
+      <div class="portfolio-section">
+        <h4 class="portfolio-title"><i class="pi pi-shield"></i> Roles ({{ identityAccess().roles.length }})</h4>
+        @for (r of identityAccess().roles; track r.id) {
+          <div class="portfolio-item-card">
+            <div>
+              <span class="portfolio-item-name">{{ r.name }}</span>
+              <span class="portfolio-item-desc">{{ r.description || 'Assigned Role' }}</span>
+            </div>
+            <button type="button" class="mini-danger-btn" (click)="activeTab() && revokeAccess(activeTab()!, r, 'ROLE')">
+              <i class="pi pi-ban"></i> Revoke
+            </button>
+          </div>
+        } @empty {
+          <div class="portfolio-empty">No roles assigned</div>
+        }
+      </div>
+
+      <!-- Access Profiles -->
+      <div class="portfolio-section">
+        <h4 class="portfolio-title"><i class="pi pi-id-card"></i> Access Profiles ({{ identityAccess().accessProfiles.length }})</h4>
+        @for (ap of identityAccess().accessProfiles; track ap.id) {
+          <div class="portfolio-item-card">
+            <div>
+              <span class="portfolio-item-name">{{ ap.name }}</span>
+              <span class="portfolio-item-desc">{{ ap.source?.name ? 'Source: ' + ap.source.name : '' }}</span>
+            </div>
+            <button type="button" class="mini-danger-btn" (click)="activeTab() && revokeAccess(activeTab()!, ap, 'ACCESS_PROFILE')">
+              <i class="pi pi-ban"></i> Revoke
+            </button>
+          </div>
+        } @empty {
+          <div class="portfolio-empty">No standalone access profiles</div>
+        }
+      </div>
+
+      <!-- Entitlements -->
+      <div class="portfolio-section">
+        <h4 class="portfolio-title"><i class="pi pi-key"></i> Entitlements ({{ identityAccess().entitlements.length }})</h4>
+        @for (ent of identityAccess().entitlements; track ent.id) {
+          <div class="portfolio-item-card">
+            <div>
+              <span class="portfolio-item-name">{{ ent.name || ent.value }}</span>
+              <span class="portfolio-item-desc font-mono">{{ ent.attribute }}: {{ ent.value }} ({{ ent.source?.name }})</span>
+            </div>
+            <button type="button" class="mini-danger-btn" (click)="activeTab() && revokeAccess(activeTab()!, ent, 'ENTITLEMENT')">
+              <i class="pi pi-ban"></i> Revoke
+            </button>
+          </div>
+        } @empty {
+          <div class="portfolio-empty">No entitlements assigned</div>
+        }
+      </div>
+    }
+  </div>
+  <ng-template #footer>
+    <button type="button" class="modal-btn modal-btn--secondary" (click)="identityAccessDialogVisible.set(false)">
+      Close
+    </button>
+  </ng-template>
+</p-dialog>
+
+<!-- 9. Identity Audit Events Dialog -->
+<p-dialog
+  header="Identity Audit Events"
+  [(visible)]="identityEventsDialogVisible"
+  [modal]="true"
+  [style]="{ width: '900px', maxWidth: '95vw', height: '80vh' }"
+  styleClass="custom-feature-dialog"
+>
+  <div class="dialog-scroll-body">
+    @if (loadingIdentityEvents()) {
+      <div class="dialog-loading-box">
+        <i class="pi pi-spin pi-spinner"></i> Searching audit event index...
+      </div>
+    } @else if (identityEvents().length === 0) {
+      <div class="dialog-empty-state">
+        <i class="pi pi-history"></i>
+        <p>No audit events found for this identity in the last 90 days.</p>
+      </div>
+    } @else {
+      <table class="custom-workbench-table">
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Type</th>
+            <th>Action</th>
+            <th>Actor</th>
+            <th>Target</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (ev of identityEvents(); track ev.id) {
+            <tr>
+              <td class="text-sm font-mono">{{ ev.created }}</td>
+              <td><span class="custom-status-tag">{{ ev.type }}</span></td>
+              <td class="text-sm">{{ ev.action }}</td>
+              <td class="text-sm">{{ ev.actor?.name || '-' }}</td>
+              <td class="text-sm font-mono">{{ ev.target?.name || '-' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </div>
+  <ng-template #footer>
+    <button type="button" class="modal-btn modal-btn--secondary" (click)="identityEventsDialogVisible.set(false)">
+      Close
+    </button>
+  </ng-template>
+</p-dialog>
+
+<!-- 10. Identity Linked Accounts Dialog -->
+<p-dialog
+  header="Linked Source Accounts"
+  [(visible)]="identityAccountsDialogVisible"
+  [modal]="true"
+  [style]="{ width: '900px', maxWidth: '95vw', height: '80vh' }"
+  styleClass="custom-feature-dialog"
+>
+  <div class="dialog-scroll-body">
+    @if (loadingIdentityAccounts()) {
+      <div class="dialog-loading-box">
+        <i class="pi pi-spin pi-spinner"></i> Fetching linked accounts...
+      </div>
+    } @else if (identityAccounts().length === 0) {
+      <div class="dialog-empty-state">
+        <i class="pi pi-server"></i>
+        <p>No accounts linked to this identity.</p>
+      </div>
+    } @else {
+      <table class="custom-workbench-table">
+        <thead>
+          <tr>
+            <th>Source</th>
+            <th>Native Identity</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (acc of identityAccounts(); track acc.id) {
+            <tr>
+              <td class="font-bold">{{ acc.sourceName || acc.sourceId }}</td>
+              <td class="font-mono text-sm">{{ acc.nativeIdentity }}</td>
+              <td>
+                <span class="custom-status-tag" [class.custom-status-tag--danger]="acc.disabled" [class.custom-status-tag--success]="!acc.disabled">
+                  {{ acc.disabled ? 'Disabled' : 'Active' }}
+                </span>
+                @if (acc.locked) {
+                  <span class="custom-status-tag custom-status-tag--warn">Locked</span>
+                }
+              </td>
+              <td>
+                <div class="table-actions-row">
+                  @if (acc.disabled) {
+                    <button type="button" class="table-mini-btn" (click)="activeTab() && accountAction('enable', acc.id, activeTab()!)" pTooltip="Enable Account">
+                      <i class="pi pi-check"></i>
+                    </button>
+                  } @else {
+                    <button type="button" class="table-mini-btn" (click)="activeTab() && accountAction('disable', acc.id, activeTab()!)" pTooltip="Disable Account">
+                      <i class="pi pi-ban"></i>
+                    </button>
+                  }
+                  @if (acc.locked) {
+                    <button type="button" class="table-mini-btn" (click)="activeTab() && accountAction('unlock', acc.id, activeTab()!)" pTooltip="Unlock Account">
+                      <i class="pi pi-lock-open"></i>
+                    </button>
+                  }
+                  <button type="button" class="table-mini-btn" (click)="activeTab() && accountAction('reload', acc.id, activeTab()!)" pTooltip="Reload from Target">
+                    <i class="pi pi-sync"></i>
+                  </button>
+                  <button type="button" class="table-mini-btn table-mini-btn--danger" (click)="activeTab() && accountAction('delete', acc.id, activeTab()!)" pTooltip="Remove Account Record">
+                    <i class="pi pi-trash"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </div>
+  <ng-template #footer>
+    <button type="button" class="modal-btn modal-btn--secondary" (click)="identityAccountsDialogVisible.set(false)">
+      Close
+    </button>
+  </ng-template>
+</p-dialog>
+
+<!-- 11. Send Test Email Dialog -->
+<p-dialog
+  header="Send Test Notification"
+  [(visible)]="testEmailDialogVisible"
+  [modal]="true"
+  [style]="{ width: '450px', maxWidth: '92vw' }"
+  styleClass="custom-feature-dialog"
+  [closable]="!sendingTestEmail()"
+>
+  <div class="dialog-body-stack">
+    <p class="dialog-instruction-text">
+      Dispatches a test email with simulated template variables to verify styling and rendering.
+    </p>
+    <div class="form-field-group">
+      <label class="form-field-label">Recipient Email Address</label>
+      <input
+        type="email"
+        class="custom-dialog-input"
+        placeholder="recipient@example.com"
+        [ngModel]="testEmailRecipient()"
+        (ngModelChange)="testEmailRecipient.set($event)"
+      />
+    </div>
+  </div>
+  <ng-template #footer>
+    <div class="reset-modal-footer">
+      <button type="button" class="modal-btn modal-btn--secondary" (click)="testEmailDialogVisible.set(false)" [disabled]="sendingTestEmail()">
+        Cancel
+      </button>
+      <button type="button" class="modal-btn modal-btn--primary" (click)="activeTab() && sendTestEmail(activeTab()!)" [disabled]="sendingTestEmail() || !testEmailRecipient().trim()">
+        @if (sendingTestEmail()) {
+          <i class="pi pi-spin pi-spinner"></i> Sending...
+        } @else {
+          <i class="pi pi-send"></i> Send Test
+        }
+      </button>
+    </div>
+  </ng-template>
+</p-dialog>
+
+<!-- 12. SP-Config Export / Import Wizard Dialog -->
+<p-dialog
+  header="Tenant Configuration (SP-Config)"
+  [(visible)]="spConfigDialogVisible"
+  [modal]="true"
+  [style]="{ width: '650px', maxWidth: '95vw', height: '80vh' }"
+  styleClass="custom-feature-dialog"
+  [closable]="!isRunningSpConfig()"
+>
+  <div class="dialog-scroll-body">
+    <div class="dialog-mode-tabs">
+      <button
+        type="button"
+        class="dialog-mode-tab"
+        [class.dialog-mode-tab--active]="spConfigMode() === 'export'"
+        (click)="spConfigMode.set('export')"
+      >
+        <i class="pi pi-download"></i> Export Configuration
+      </button>
+      <button
+        type="button"
+        class="dialog-mode-tab"
+        [class.dialog-mode-tab--active]="spConfigMode() === 'import'"
+        (click)="spConfigMode.set('import')"
+      >
+        <i class="pi pi-upload"></i> Import Configuration
+      </button>
+    </div>
+
+    @if (spConfigMode() === 'export') {
+      <div class="dialog-body-stack">
+        <div class="sp-config-header-row">
+          <p class="dialog-instruction-text">
+            Select configuration object types to package into a single JSON export artifact:
+          </p>
+          <div class="types-selection-toolbar">
+            <button
+              type="button"
+              class="mini-tool-btn"
+              (click)="selectAllSpConfigTypes()"
+              [disabled]="isRunningSpConfig()"
+            >
+              <i class="pi pi-check-square"></i> Select All
+            </button>
+            <button
+              type="button"
+              class="mini-tool-btn"
+              (click)="deselectAllSpConfigTypes()"
+              [disabled]="isRunningSpConfig()"
+            >
+              <i class="pi pi-square"></i> Deselect All
+            </button>
+            <span class="selection-count-pill">
+              {{ spConfigExportTypes().length }} of {{ spConfigExportTypeOptions.length }} selected
+            </span>
+          </div>
+        </div>
+
+        <div class="types-selection-grid">
+          @for (opt of spConfigExportTypeOptions; track opt.type) {
+            <label
+              class="type-check-card"
+              [class.type-check-card--active]="spConfigExportTypes().includes(opt.type)"
+            >
+              <input
+                type="checkbox"
+                [checked]="spConfigExportTypes().includes(opt.type)"
+                (change)="toggleSpConfigType(opt.type)"
+                [disabled]="isRunningSpConfig()"
+              />
+              <i [class]="opt.icon" class="type-check-card__icon"></i>
+              <div class="type-check-card__content">
+                <span class="type-check-card__label">{{ opt.label }}</span>
+                <span class="type-check-card__desc">{{ opt.description }}</span>
+              </div>
+            </label>
+          }
+        </div>
+      </div>
+    } @else {
+      <div class="dialog-body-stack">
+        <p class="dialog-instruction-text">
+          Paste an SP-Config JSON package or upload a file to import into tenant <code>{{ tenantOrg() }}</code>.
+        </p>
+        <div class="form-field-group">
+          <label class="form-field-label">Package JSON</label>
+          <textarea
+            class="custom-dialog-textarea font-mono"
+            rows="10"
+            placeholder="Paste SP-Config JSON package here..."
+            [ngModel]="spConfigImportContent()"
+            (ngModelChange)="spConfigImportContent.set($event)"
+          ></textarea>
+        </div>
+        <label class="type-check-card">
+          <input
+            type="checkbox"
+            [checked]="spConfigImportPreview()"
+            (change)="spConfigImportPreview.set(!spConfigImportPreview())"
+          />
+          <span>Preview Mode (dry run validation without applying changes)</span>
+        </label>
+      </div>
+    }
+  </div>
+  <ng-template #footer>
+    <div class="reset-modal-footer">
+      <button type="button" class="modal-btn modal-btn--secondary" (click)="spConfigDialogVisible.set(false)" [disabled]="isRunningSpConfig()">
+        Close
+      </button>
+      @if (spConfigMode() === 'export') {
+        <button type="button" class="modal-btn modal-btn--primary" (click)="executeSpConfigExport()" [disabled]="isRunningSpConfig() || spConfigExportTypes().length === 0">
+          @if (isRunningSpConfig()) {
+            <i class="pi pi-spin pi-spinner"></i> Packaging Export...
+          } @else {
+            <i class="pi pi-download"></i> Start Export &amp; Download
+          }
+        </button>
+      } @else {
+        <button type="button" class="modal-btn modal-btn--primary" (click)="executeSpConfigImport()" [disabled]="isRunningSpConfig() || !spConfigImportContent().trim()">
+          @if (isRunningSpConfig()) {
+            <i class="pi pi-spin pi-spinner"></i> Importing...
+          } @else {
+            <i class="pi pi-cloud-upload"></i> {{ spConfigImportPreview() ? 'Run Preview Check' : 'Execute Live Import' }}
+          }
+        </button>
+      }
+    </div>
+  </ng-template>
+</p-dialog>
+
+
+<!-- 14. Background Task Monitor Dialog -->
+<p-dialog
+  header="Background Task Monitor"
+  [(visible)]="tasksDialogVisible"
+  [modal]="true"
+  [style]="{ width: '750px', maxWidth: '95vw', height: '70vh' }"
+  styleClass="custom-feature-dialog"
+>
+  <div class="dialog-scroll-body">
+    @if (trackedTasks().length === 0) {
+      <div class="dialog-empty-state">
+        <i class="pi pi-check-circle"></i>
+        <p>No background tasks are currently running or tracked.</p>
+      </div>
+    } @else {
+      <table class="custom-workbench-table">
+        <thead>
+          <tr>
+            <th>Status</th>
+            <th>Task Name</th>
+            <th>Type</th>
+            <th>Task ID</th>
+            <th>Detail</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (task of trackedTasks(); track task.id) {
+            <tr>
+              <td>
+                <span
+                  class="custom-status-tag"
+                  [class.custom-status-tag--success]="task.status === 'COMPLETED'"
+                  [class.custom-status-tag--danger]="task.status === 'FAILED'"
+                  [class.custom-status-tag--warn]="task.status === 'IN_PROGRESS'"
+                >
+                  @if (task.status === 'IN_PROGRESS') {
+                    <i class="pi pi-spin pi-spinner"></i>
+                  }
+                  {{ task.status }}
+                </span>
+              </td>
+              <td class="font-bold">{{ task.name }}</td>
+              <td>{{ task.type }}</td>
+              <td class="font-mono text-sm">{{ task.id }}</td>
+              <td class="text-sm text-dim">{{ task.detail || '-' }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    }
+  </div>
+  <ng-template #footer>
+    <button type="button" class="modal-btn modal-btn--secondary" (click)="tasksDialogVisible.set(false)">
+      Close
+    </button>
+  </ng-template>
+</p-dialog>

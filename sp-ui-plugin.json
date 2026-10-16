@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "manifest": {
+    "alias": "isc-debug-mode-identityexe",
+    "name": {
+      "en": "Administrator Console"
+    },
+    "description": {
+      "en": "VS Code-style backend object browser, specialized studios, JSON code editor, and differential change engine for SailPoint Identity Security Cloud"
+    },
+    "apiScopes": [
+      "sp:scopes:all"
+    ],
+    "contentSecurityPolicies": {},
+    "permissionPolicy": {},
+    "iframeAllow": {},
+    "state": "ENABLED",
+    "slots": [
+      {
+        "slotId": "full-page"
+      }
+    ]
+  },
+  "build": {
+    "outDir": "./dist/isc-debug-mode-identityexe/browser",
+    "port": 4200
+  }
+}

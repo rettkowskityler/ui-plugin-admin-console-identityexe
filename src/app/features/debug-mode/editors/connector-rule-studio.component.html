@@ -1,0 +1,240 @@
+<div class="rule-studio">
+  <!-- Studio Top Bar -->
+  <div class="studio-topbar">
+    <div class="studio-topbar__left">
+      <div class="rule-meta-tag">
+        <i class="pi pi-code"></i>
+        <span class="rule-type-name">{{ ruleType() }}</span>
+      </div>
+      <span class="mode-tag mode-tag--rw">
+        <i class="pi pi-pencil"></i> PUT
+      </span>
+      <span class="rule-meta-sep">&bull;</span>
+      <span class="rule-meta-id font-mono">{{ tab().objectId }}</span>
+    </div>
+
+    <div class="studio-topbar__center">
+      <div class="subtab-pills">
+        <button
+          type="button"
+          class="subtab-btn"
+          [class.subtab-btn--active]="activeSubTab() === 'script'"
+          (click)="activeSubTab.set('script')"
+        >
+          <i class="pi pi-code"></i> BeanShell / Java Source
+        </button>
+        <button
+          type="button"
+          class="subtab-btn"
+          [class.subtab-btn--active]="activeSubTab() === 'json'"
+          (click)="activeSubTab.set('json')"
+        >
+          <i class="pi pi-file"></i> Full Rule JSON Envelope
+        </button>
+      </div>
+    </div>
+
+    <div class="studio-topbar__right">
+      <!-- Validation Status Indicator -->
+      @if (activeSubTab() === 'json' && tab().jsonError) {
+        <span class="error-badge" [title]="tab().jsonError">
+          <i class="pi pi-times-circle"></i> Invalid JSON
+        </span>
+      } @else {
+        <span class="valid-badge">
+          <i class="pi pi-check-circle"></i> {{ activeSubTab() === 'script' ? 'Java / BeanShell' : 'Valid JSON' }}
+        </span>
+      }
+
+      <!-- Reload Object Button -->
+      <button
+        type="button"
+        class="tool-btn"
+        (click)="reloadObject.emit()"
+        [disabled]="reloading()"
+        pTooltip="Reload latest rule definition from tenant"
+      >
+        <i class="pi pi-refresh" [class.pi-spin]="reloading()"></i>
+        <span>Reload</span>
+      </button>
+
+      <!-- JSON Format Button -->
+      @if (activeSubTab() === 'json' && isEditMode()) {
+        <button type="button" class="tool-btn" (click)="formatJson()" pTooltip="Format JSON Envelope">
+          <i class="pi pi-align-left"></i> Format
+        </button>
+      }
+
+      <!-- Copy Button -->
+      <button
+        type="button"
+        class="tool-btn"
+        (click)="copyCode()"
+        pTooltip="Copy code to clipboard"
+      >
+        <i class="pi" [class.pi-copy]="!copied()" [class.pi-check]="copied()"></i>
+        {{ copied() ? 'Copied' : 'Copy' }}
+      </button>
+
+      <!-- Review Diff & Save -->
+      <button
+        type="button"
+        class="save-btn"
+        (click)="reviewDiff.emit()"
+        [disabled]="!tab().isDirty || !!tab().jsonError"
+        pTooltip="Review changes in differential modal"
+      >
+        <i class="pi pi-check"></i> Review Diff &amp; Save
+      </button>
+    </div>
+  </div>
+
+  <!-- Studio Main Work Area -->
+  <div class="studio-main">
+    <!-- Center: Editor Section -->
+    <div class="editor-section">
+      <!-- A. BeanShell / Java Source Tab -->
+      @if (activeSubTab() === 'script') {
+        <!-- 1. Interactive Java Edit Mode -->
+        @if (isEditMode()) {
+          <div class="code-container edit-view">
+            <div class="line-gutter font-mono" #scriptGutter>
+              @for (num of getLineNumbers(tab().editedScript || ''); track num) {
+                <div class="line-num">{{ num }}</div>
+              }
+            </div>
+            <div class="code-editor-surface font-mono">
+              <pre class="code-backdrop code-backdrop--java" #scriptBackdrop aria-hidden="true"><code [innerHTML]="highlightedScriptHtml()"></code></pre>
+              <textarea
+                #scriptArea
+                class="code-textarea code-textarea--java font-mono"
+                [ngModel]="tab().editedScript || ''"
+                (ngModelChange)="onScriptInput($event)"
+                (keydown)="handleKeyDown($event, scriptArea)"
+                (scroll)="syncEditScroll(scriptArea, scriptBackdrop, scriptGutter)"
+                spellcheck="false"
+                autocomplete="off"
+                autocorrect="off"
+                autocapitalize="off"
+                placeholder="// Enter BeanShell / Java rule implementation here..."
+              ></textarea>
+            </div>
+          </div>
+        }
+        <!-- 2. Java Syntax Viewer Mode -->
+        @else {
+          <div class="code-container syntax-view">
+            <div class="syntax-scroll-pane font-mono">
+              <div class="line-gutter">
+                @for (line of highlightedScriptLines(); track line.lineNum) {
+                  <div class="line-num">{{ line.lineNum }}</div>
+                }
+              </div>
+              <div class="syntax-content">
+                @for (line of highlightedScriptLines(); track line.lineNum) {
+                  <div class="syntax-line" [innerHTML]="line.html"></div>
+                }
+              </div>
+            </div>
+          </div>
+        }
+      }
+
+      <!-- B. Full Rule JSON Envelope Tab -->
+      @else {
+        <!-- 1. Interactive JSON Edit Mode -->
+        @if (isEditMode()) {
+          <div class="code-container edit-view">
+            <div class="line-gutter font-mono" #jsonGutter>
+              @for (num of getLineNumbers(tab().editedCode); track num) {
+                <div class="line-num">{{ num }}</div>
+              }
+            </div>
+            <div class="code-editor-surface font-mono">
+              <pre class="code-backdrop" #jsonBackdrop aria-hidden="true"><code [innerHTML]="highlightedJsonHtml()"></code></pre>
+              <textarea
+                #jsonArea
+                class="code-textarea font-mono"
+                [ngModel]="tab().editedCode"
+                (ngModelChange)="onJsonInput($event)"
+                (keydown)="handleKeyDown($event, jsonArea)"
+                (scroll)="syncEditScroll(jsonArea, jsonBackdrop, jsonGutter)"
+                spellcheck="false"
+                autocomplete="off"
+                autocorrect="off"
+                autocapitalize="off"
+              ></textarea>
+            </div>
+          </div>
+        }
+        <!-- 2. JSON Syntax Viewer Mode -->
+        @else {
+          <div class="code-container syntax-view">
+            <div class="syntax-scroll-pane font-mono">
+              <div class="line-gutter">
+                @for (line of highlightedJsonLines(); track line.lineNum) {
+                  <div class="line-num">{{ line.lineNum }}</div>
+                }
+              </div>
+              <div class="syntax-content">
+                @for (line of highlightedJsonLines(); track line.lineNum) {
+                  <div class="syntax-line" [innerHTML]="line.html"></div>
+                }
+              </div>
+            </div>
+          </div>
+        }
+      }
+    </div>
+
+    <!-- Right: Signature Inspector & Quick Snippets Panel -->
+    <div class="side-panel">
+      <!-- Input Signature Variables -->
+      <div class="panel-card">
+        <div class="panel-card__header">
+          <i class="pi pi-sliders-h"></i> Input Signature Variables
+        </div>
+        <div class="panel-card__body">
+          <div class="vars-list">
+            @for (v of signatureVariables(); track v.name) {
+              <div
+                class="var-item"
+                (click)="insertSnippet(v.name)"
+                pTooltip="Click to insert variable into code"
+              >
+                <div class="var-item__top">
+                  <span class="var-name font-mono">{{ v.name }}</span>
+                  <span class="var-type font-mono">{{ v.type }}</span>
+                </div>
+                @if (v.description) {
+                  <span class="var-desc">{{ v.description }}</span>
+                }
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Snippets -->
+      <div class="panel-card">
+        <div class="panel-card__header">
+          <i class="pi pi-bolt"></i> Common Snippets
+        </div>
+        <div class="panel-card__body">
+          <div class="snippets-list">
+            @for (snip of commonSnippets; track snip.name) {
+              <div
+                class="snippet-item"
+                (click)="insertSnippet(snip.code)"
+                [pTooltip]="snip.description"
+              >
+                <span class="snippet-name">{{ snip.name }}</span>
+                <i class="pi pi-plus snippet-add-icon"></i>
+              </div>
+            }
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
