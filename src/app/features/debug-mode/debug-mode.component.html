@@ -1535,13 +1535,43 @@
         autofocus
       />
     </div>
+
+    @if (newResourceType()?.key === 'access-profiles') {
+      <div class="form-field-group">
+        <label class="form-field-label">Source <span style="color: var(--danger-color, #ef4444)">*</span></label>
+        @if (isLoadingSourcesForModal()) {
+          <div style="font-size: 0.8rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px; padding: 6px 0;">
+            <i class="pi pi-spin pi-spinner"></i> Loading tenant sources...
+          </div>
+        } @else if (modalSources().length === 0) {
+          <div style="font-size: 0.8rem; color: var(--danger-color, #ef4444); padding: 6px 0;">
+            No sources found in tenant. An access profile requires a source.
+          </div>
+        } @else {
+          <select
+            class="custom-dialog-select"
+            [ngModel]="newResourceSourceId()"
+            (ngModelChange)="newResourceSourceId.set($event)"
+          >
+            @for (src of modalSources(); track src.id) {
+              <option [value]="src.id">{{ src.name }}</option>
+            }
+          </select>
+        }
+      </div>
+    }
   </div>
   <ng-template #footer>
     <div class="reset-modal-footer">
       <button type="button" class="modal-btn modal-btn--secondary" (click)="newResourceDialogVisible.set(false)" [disabled]="creatingResource()">
         <i class="pi pi-times"></i> Cancel
       </button>
-      <button type="button" class="modal-btn modal-btn--primary" (click)="confirmCreateResource()" [disabled]="creatingResource() || !newResourceName().trim()">
+      <button
+        type="button"
+        class="modal-btn modal-btn--primary"
+        (click)="confirmCreateResource()"
+        [disabled]="creatingResource() || !newResourceName().trim() || (newResourceType()?.key === 'access-profiles' && (!newResourceSourceId() || isLoadingSourcesForModal()))"
+      >
         @if (creatingResource()) {
           <i class="pi pi-spin pi-spinner"></i> Creating...
         } @else {

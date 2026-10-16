@@ -125,6 +125,9 @@ export class DebugModeComponent implements OnInit, OnDestroy {
   readonly newResourceDialogVisible = signal<boolean>(false);
   readonly newResourceType = signal<IscObjectType | null>(null);
   readonly newResourceName = signal<string>('');
+  readonly newResourceSourceId = signal<string>('');
+  readonly modalSources = signal<Array<{ id: string; name: string }>>([]);
+  readonly isLoadingSourcesForModal = signal<boolean>(false);
   readonly creatingResource = signal<boolean>(false);
 
   readonly deleteDialogVisible = signal<boolean>(false);
@@ -682,7 +685,58 @@ export class DebugModeComponent implements OnInit, OnDestroy {
     if (event) event.stopPropagation();
     this.newResourceType.set(type);
     this.newResourceName.set('');
+    this.newResourceSourceId.set('');
     this.newResourceDialogVisible.set(true);
+
+    if (type.key === 'access-profiles') {
+      const cachedSources = this.typeItemsMap().get('sources');
+      if (cachedSources && cachedSources.length > 0) {
+        const list = cachedSources.map((s) => ({ id: s.id, name: s.name || s.id }));
+        this.modalSources.set(list);
+        this.newResourceSourceId.set(list[0].id);
+      } else {
+        this.isLoadingSourcesForModal.set(true);
+        const sourcesType = this.objectTypes.find((t) => t.key === 'sources');
+        if (sourcesType) {
+          this.apiService
+            .fetchObjects(sourcesType, 0, 100)
+            .then((res) => {
+              const list = (res.items || []).map((s) => ({ id: s.id, name: s.name || s.id }));
+              this.modalSources.set(list);
+              if (list.length > 0) {
+                this.newResourceSourceId.set(list[0].id);
+              }
+            })
+            .catch((err) => {
+              console.warn('Could not load sources for access profile creation modal:', err);
+            })
+            .finally(() => {
+              this.isLoadingSourcesForModal.set(false);
+            });
+        } else {
+          this.isLoadingSourcesForModal.set(false);
+        }
+      }
+    }
+  }
+
+  private async resolveCurrentIdentityId(): Promise<string> {
+    const user = this.plugin.user();
+    if (user?.id) {
+      return user.id;
+    }
+    try {
+      const idType = this.objectTypes.find((t) => t.key === 'public-identities');
+      if (idType) {
+        const res = await this.apiService.fetchObjects(idType, 0, 1);
+        if (res.items && res.items.length > 0) {
+          return res.items[0].id;
+        }
+      }
+    } catch (err) {
+      console.warn('Could not resolve identity fallback:', err);
+    }
+    return '';
   }
 
   async confirmCreateResource(): Promise<void> {
@@ -692,8 +746,58 @@ export class DebugModeComponent implements OnInit, OnDestroy {
 
     this.creatingResource.set(true);
     try {
-      const templateGen = NEW_OBJECT_TEMPLATES[type.key];
-      const payload = templateGen ? templateGen(name) : { name };
+      let payload: Record<string, unknown>;
+
+      if (type.key === 'access-profiles') {
+        let sourceId = this.newResourceSourceId();
+        if (!sourceId && this.modalSources().length > 0) {
+          sourceId = this.modalSources()[0].id;
+        }
+        if (!sourceId) {
+          const sourcesType = this.objectTypes.find((t) => t.key === 'sources');
+          if (sourcesType) {
+            const res = await this.apiService.fetchObjects(sourcesType, 0, 1);
+            if (res.items && res.items.length > 0) {
+              sourceId = res.items[0].id;
+            }
+          }
+        }
+        if (!sourceId) {
+          throw new Error('A Source is required to create an Access Profile, but none was found or selected.');
+        }
+
+        const ownerId = await this.resolveCurrentIdentityId();
+        if (!ownerId) {
+          throw new Error('An Identity Owner is required to create an Access Profile, but none could be resolved.');
+        }
+
+        payload = {
+          name,
+          description: 'Access profile created via Debug Console',
+          enabled: false,
+          requestable: false,
+          owner: { type: 'IDENTITY', id: ownerId },
+          source: { type: 'SOURCE', id: sourceId },
+          entitlements: [],
+        };
+      } else if (type.key === 'roles') {
+        const ownerId = await this.resolveCurrentIdentityId();
+        if (!ownerId) {
+          throw new Error('An Identity Owner is required to create a Role, but none could be resolved.');
+        }
+        payload = {
+          name,
+          description: 'Business role created via Debug Console',
+          enabled: true,
+          requestable: false,
+          owner: { type: 'IDENTITY', id: ownerId },
+          accessProfiles: [],
+          membership: { type: 'STANDARD', criteria: null },
+        };
+      } else {
+        const templateGen = NEW_OBJECT_TEMPLATES[type.key];
+        payload = templateGen ? templateGen(name) : { name };
+      }
 
       const res = await this.apiService.createObject(type, payload);
       if (res.success) {

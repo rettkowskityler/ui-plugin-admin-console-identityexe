@@ -525,7 +525,7 @@ export const NEW_OBJECT_TEMPLATES: Record<string, (name: string) => Record<strin
   'access-profiles': (name) => ({
     name,
     description: 'Access profile created via Debug Console',
-    enabled: true,
+    enabled: false,
     requestable: false,
     owner: { type: 'IDENTITY', id: '' },
     source: { type: 'SOURCE', id: '' },
