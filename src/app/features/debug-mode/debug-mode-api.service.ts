@@ -76,25 +76,7 @@ export class DebugModeApiService {
         return { items, totalCount: res.totalCount ?? raw.length };
       }
 
-      // 3. Cloud Rules
-      if (objectType.key === 'cloud-rules') {
-        try {
-          const raw = await this.plugin.get<any[]>('/v3/cloud-rules');
-          const list = Array.isArray(raw) ? raw : [];
-          const filtered = q
-            ? list.filter((r: any) => (r.name || '').toLowerCase().includes(q.toLowerCase()))
-            : list;
-          const page = filtered.slice(offset, offset + limit);
-          return {
-            items: page.map((r: any) => this.mapRawToObjectItem(objectType, r)),
-            totalCount: filtered.length,
-          };
-        } catch {
-          return { items: [], totalCount: 0 };
-        }
-      }
-
-      // 4. Notification Templates (merges system defaults with tenant custom overrides)
+      // 3. Notification Templates (merges system defaults with tenant custom overrides)
       if (objectType.key === 'notification-templates') {
         try {
           const [defaultsRes, customRes] = await Promise.allSettled([

@@ -5,7 +5,6 @@ export type IscObjectKey =
   | 'access-profiles'
   | 'transforms'
   | 'connector-rules'
-  | 'cloud-rules'
   | 'workflows'
   | 'forms'
   | 'applications'
@@ -205,23 +204,6 @@ export const ISC_OBJECT_TYPES: IscObjectType[] = [
     supportsCreate: true,
     supportsUpdate: true,
     supportsDelete: true,
-    supportsExport: true,
-    pageable: true,
-    updateMethod: 'PUT',
-    idField: 'id',
-    nameField: 'name',
-    typeField: 'type',
-  },
-  {
-    key: 'cloud-rules',
-    label: 'Cloud Rules',
-    category: 'Automation & Rules',
-    endpoint: '/v3/cloud-rules',
-    description: 'SailPoint cloud-executed rules (read-only inspection, export XML/script)',
-    icon: 'pi pi-cloud',
-    supportsCreate: false,
-    supportsUpdate: false,
-    supportsDelete: false,
     supportsExport: true,
     pageable: true,
     updateMethod: 'PUT',
