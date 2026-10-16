@@ -516,11 +516,11 @@ export const NEW_OBJECT_TEMPLATES: Record<string, (name: string) => Record<strin
   roles: (name) => ({
     name,
     description: 'Business role created via Debug Console',
-    enabled: true,
+    enabled: false,
     requestable: false,
     owner: { type: 'IDENTITY', id: '' },
     accessProfiles: [],
-    membership: { type: 'STANDARD', criteria: null },
+    membership: null,
   }),
   'access-profiles': (name) => ({
     name,
@@ -567,35 +567,36 @@ export const NEW_OBJECT_TEMPLATES: Record<string, (name: string) => Record<strin
   }),
   forms: (name) => ({
     name,
-    title: name,
     description: 'Custom form definition',
-    formElements: [
-      {
-        id: 'field1',
-        element: 'text',
-        name: 'field1',
-        label: 'Field 1',
-        config: { required: true },
-      },
-    ],
+    owner: { type: 'IDENTITY', id: '' },
+    formElements: [],
+    formInput: [],
+    formConditions: [],
+    usedBy: [],
   }),
   applications: (name) => ({
     name,
     description: 'Application created via Debug Console',
-    enabled: true,
+    enabled: false,
     accountSource: { id: '', type: 'SOURCE' },
   }),
-  'identity-attributes': (name) => ({
-    name,
-    displayName: name,
-    standard: false,
-    type: 'string',
-    multi: false,
-    searchable: true,
-  }),
-  'search-attributes': (name) => ({
-    name,
-    displayName: name,
-    applicationId: '',
-  }),
+  'identity-attributes': (name) => {
+    const sanitized = name.replace(/[^a-zA-Z0-9_]/g, '') || `attr_${Date.now()}`;
+    return {
+      name: sanitized,
+      displayName: name,
+      standard: false,
+      type: 'string',
+      multi: false,
+      searchable: true,
+    };
+  },
+  'search-attributes': (name) => {
+    const sanitized = name.replace(/[^a-zA-Z0-9_]/g, '') || `searchAttr_${Date.now()}`;
+    return {
+      name: sanitized,
+      displayName: name,
+      applicationAttributes: {},
+    };
+  },
 };

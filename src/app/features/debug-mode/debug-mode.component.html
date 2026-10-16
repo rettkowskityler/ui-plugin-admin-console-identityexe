@@ -1536,7 +1536,7 @@
       />
     </div>
 
-    @if (newResourceType()?.key === 'access-profiles') {
+    @if (['access-profiles', 'applications', 'search-attributes'].includes(newResourceType()?.key || '')) {
       <div class="form-field-group">
         <label class="form-field-label">Source <span style="color: var(--danger-color, #ef4444)">*</span></label>
         @if (isLoadingSourcesForModal()) {
@@ -1545,7 +1545,7 @@
           </div>
         } @else if (modalSources().length === 0) {
           <div style="font-size: 0.8rem; color: var(--danger-color, #ef4444); padding: 6px 0;">
-            No sources found in tenant. An access profile requires a source.
+            No sources found in tenant. This resource requires a source.
           </div>
         } @else {
           <select
@@ -1570,7 +1570,7 @@
         type="button"
         class="modal-btn modal-btn--primary"
         (click)="confirmCreateResource()"
-        [disabled]="creatingResource() || !newResourceName().trim() || (newResourceType()?.key === 'access-profiles' && (!newResourceSourceId() || isLoadingSourcesForModal()))"
+        [disabled]="creatingResource() || !newResourceName().trim() || (['access-profiles', 'applications', 'search-attributes'].includes(newResourceType()?.key || '') && (!newResourceSourceId() || isLoadingSourcesForModal()))"
       >
         @if (creatingResource()) {
           <i class="pi pi-spin pi-spinner"></i> Creating...
